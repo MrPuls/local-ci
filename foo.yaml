@@ -1,0 +1,15 @@
+steps:
+  - step 1
+
+
+Test:
+  step: step 1
+  image: alpine
+  script:
+    - echo "Hello World"
+    - touch foo.txt
+    - sleep 5
+    - echo "Hello from txt file" >> foo.txt
+    - cat foo.txt
+    - sleep 5
+    - ls -la
