@@ -6,9 +6,10 @@ import (
 )
 
 type StepConfig struct {
-	Image  string   `yaml:"image"`
-	Script []string `yaml:"script"`
-	Step   string   `yaml:"step"`
+	Image   string   `yaml:"image"`
+	Script  []string `yaml:"script"`
+	Step    string   `yaml:"step"`
+	Workdir string   `yaml:"workdir,omitempty"`
 }
 
 type Config struct {

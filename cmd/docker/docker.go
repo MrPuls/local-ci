@@ -1,23 +1,19 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"io"
+	"local-ci/cmd/archive"
 	"local-ci/cmd/config"
+	"os"
 	"strings"
 )
 
-type Docker struct {
-	client *client.Client
-	ctx    context.Context
-	config *config.Config
-}
-
-func (d *Docker) CreateClient(ctx context.Context) {
-	d.ctx = ctx
+func ExecuteConfigPipeline(cfg config.Config, ctx context.Context) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
@@ -28,29 +24,63 @@ func (d *Docker) CreateClient(ctx context.Context) {
 			panic(err)
 		}
 	}(cli)
-	d.client = cli
-}
 
-func (d *Docker) PullImage(pullOptions image.PullOptions) (io.ReadCloser, error) {
-	cli := d.client
-	reader, err := cli.ImagePull(d.ctx, d.config.Blocks["Test"].Image, pullOptions)
+	reader, err := cli.ImagePull(ctx, cfg.Blocks["Test"].Image, image.PullOptions{})
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return reader, nil
-}
+	_, errCp := io.Copy(os.Stdout, reader)
+	if errCp != nil {
+		panic(errCp)
+	}
 
-func (d *Docker) CreateContainer(config config.Config) (container.CreateResponse, error) {
-	cli := d.client
-	shellCmd := strings.Join(config.Blocks["Test"].Script, "&&")
+	shellCmd := strings.Join(cfg.Blocks["Test"].Script, "&&")
 
-	resp, err := cli.ContainerCreate(d.ctx, &container.Config{
-		Image:      config.Blocks["Test"].Image,
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:      cfg.Blocks["Test"].Image,
 		WorkingDir: "/app",
 		Cmd:        []string{"/bin/sh", "-c", shellCmd},
 	}, nil, nil, nil, "")
 	if err != nil {
-		return resp, err
+		panic(err)
 	}
-	return resp, nil
+
+	var b bytes.Buffer
+	fsErr := archive.CreateFSTar(".", &b)
+	if fsErr != nil {
+		return
+	}
+
+	errCpCtr := cli.CopyToContainer(ctx, resp.ID, "/app", &b, container.CopyToContainerOptions{})
+	if errCpCtr != nil {
+		panic(errCpCtr)
+	}
+
+	logs, err := cli.ContainerAttach(ctx, resp.ID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
+	if err != nil {
+		panic(err)
+	}
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		panic(err)
+	}
+	defer logs.Close()
+
+	_, err = io.Copy(os.Stdout, logs.Reader)
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			panic(err)
+		}
+	case <-statusCh:
+	}
+
+	delCntErr := cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{})
+	if delCntErr != nil {
+		panic(delCntErr)
+	}
 }
