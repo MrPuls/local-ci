@@ -1,5 +1,6 @@
 steps:
   - step 1
+  - step 2
 
 
 Test:
@@ -13,3 +14,8 @@ Test:
     - cat foo.txt
     - sleep 5
     - ls -la
+
+Test_2:
+  step: step 2
+  image: alpine
+  script:

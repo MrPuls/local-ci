@@ -13,12 +13,13 @@ type StepConfig struct {
 }
 
 type Config struct {
-	Steps  []string              `yaml:"steps"`
-	Blocks map[string]StepConfig `yaml:",inline,omitempty"`
+	FileName string
+	Steps    []string              `yaml:"steps"`
+	Blocks   map[string]StepConfig `yaml:",inline"`
 }
 
-func (c *Config) GetConfig() error {
-	yamlFile, err := os.ReadFile("foo.yaml")
+func (c *Config) GetConfig(file string) error {
+	yamlFile, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -26,5 +27,6 @@ func (c *Config) GetConfig() error {
 	if err != nil {
 		return err
 	}
+	c.FileName = file
 	return nil
 }
