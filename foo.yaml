@@ -6,6 +6,9 @@ steps:
 Test:
   step: step 1
   image: alpine
+  variables:
+    FOO: BAR
+    BAZ: EGGS
   script:
     - echo "Hello World"
     - touch foo.txt
@@ -14,8 +17,3 @@ Test:
     - cat foo.txt
     - sleep 5
     - ls -la
-
-Test_2:
-  step: step 2
-  image: alpine
-  script:

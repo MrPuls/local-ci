@@ -22,9 +22,16 @@ func ValidateConfig(cfg Config) error {
 		}
 		if len(blocks[item].Script) == 0 {
 			return fmt.Errorf(
-				"[YAML] %s block does not have any scripts defined. "+
+				"[YAML] %s block uses a \"script\" field, but no scripts were defined. "+
 					"Please add at least one script."+
 					"\nExample:\n\nsteps:\n  - echo \"Hello World!\" <- script code goes here\n", item,
+			)
+		}
+		if len(blocks[item].Variables) == 0 {
+			return fmt.Errorf(
+				"[YAML] %s block uses a \"variables\" field, but no variables were defined. "+
+					"Please add at least one script."+
+					"\nExample:\n\nvariables:\n  FOO: BAR <- key \"FOO\" cantains variable value \"BAR\"\n", item,
 			)
 		}
 	}
