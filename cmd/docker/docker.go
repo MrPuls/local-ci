@@ -11,9 +11,16 @@ import (
 	"local-ci/cmd/config"
 	"os"
 	"strings"
+	"time"
 )
 
-func ExecuteConfigPipeline(cfg config.Config, ctx context.Context) {
+func ExecuteConfigPipeline(cfg config.StepConfig) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
+	defer cancel()
+	workdir := cfg.Workdir
+	if workdir == "" {
+		workdir = "/"
+	}
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
@@ -25,7 +32,7 @@ func ExecuteConfigPipeline(cfg config.Config, ctx context.Context) {
 		}
 	}(cli)
 
-	reader, err := cli.ImagePull(ctx, cfg.Blocks["Test"].Image, image.PullOptions{})
+	reader, err := cli.ImagePull(ctx, cfg.Image, image.PullOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -34,12 +41,13 @@ func ExecuteConfigPipeline(cfg config.Config, ctx context.Context) {
 		panic(errCp)
 	}
 
-	shellCmd := strings.Join(cfg.Blocks["Test"].Script, "&&")
+	shellCmd := strings.Join(cfg.Script, "&&")
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:      cfg.Blocks["Test"].Image,
-		WorkingDir: "/app",
+		Image:      cfg.Image,
+		WorkingDir: workdir,
 		Cmd:        []string{"/bin/sh", "-c", shellCmd},
+		Env:        []string{"FOO=BARR"},
 	}, nil, nil, nil, "")
 	if err != nil {
 		panic(err)
@@ -51,7 +59,7 @@ func ExecuteConfigPipeline(cfg config.Config, ctx context.Context) {
 		return
 	}
 
-	errCpCtr := cli.CopyToContainer(ctx, resp.ID, "/app", &b, container.CopyToContainerOptions{})
+	errCpCtr := cli.CopyToContainer(ctx, resp.ID, workdir, &b, container.CopyToContainerOptions{})
 	if errCpCtr != nil {
 		panic(errCpCtr)
 	}

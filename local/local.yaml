@@ -1,0 +1,36 @@
+steps:
+  - step 1
+  - step 2
+
+
+Test:
+  step: step 1
+  image: alpine
+  variables:
+    FOO: BAR
+    BAZ: EGGS
+  script:
+    - echo "Hello World"
+    - echo $FOO
+    - touch foo.txt
+    - sleep 5
+    - echo "Hello from txt file" >> foo.txt
+    - cat foo.txt
+    - sleep 5
+    - ls -la
+
+#Test2:
+#  step: step 2
+#  image: alpine
+#  variables:
+#    FOO: BAR
+#    BAZ: EGGS
+#  script:
+#    - echo "Hello World from step 2"
+#    - echo $FOO
+#    - touch foo.txt
+#    - sleep 5
+#    - echo "Hello from txt file" >> foo.txt
+#    - cat foo.txt
+#    - sleep 5
+#    - ls -la
