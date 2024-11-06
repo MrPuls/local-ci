@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"local-ci/cmd/cli"
+	"github.com/MrPuls/local-ci/cmd/cli"
 	"os"
 )
 

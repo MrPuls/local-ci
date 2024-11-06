@@ -3,8 +3,8 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"local-ci/cmd/config"
-	"local-ci/cmd/docker"
+	"github.com/MrPuls/local-ci/cmd/config"
+	"github.com/MrPuls/local-ci/cmd/docker"
 	"os"
 )
 

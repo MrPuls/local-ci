@@ -1,4 +1,4 @@
-module local-ci
+module github.com/MrPuls/local-ci
 
 go 1.23.1
 
