@@ -14,7 +14,7 @@ func Start(args []string) {
 		"f", ".local-ci/local.yaml",
 		"path to config file (defaults to .local-ci/local.yaml)",
 	)
-	fs.String("help", "", "type local-ci start to start the pipeline")
+	fs.String("help", "", "\"start\" - to start the pipeline")
 	if err := fs.Parse(args); err != nil {
 		fmt.Printf("error: %s", err)
 		return

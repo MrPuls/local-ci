@@ -15,9 +15,8 @@ Test:
     - touch foo.txt
     - sleep 5
     - echo "Hello from txt file" >> foo.txt
+    - echo $BAZ >> foo.txt
     - cat foo.txt
-    - sleep 5
-    - ls -la
 
 #Test2:
 #  step: step 2

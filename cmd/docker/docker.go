@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/MrPuls/local-ci/cmd/archive"
 	"github.com/MrPuls/local-ci/cmd/config"
 	"github.com/docker/docker/api/types/container"
@@ -43,11 +44,15 @@ func ExecuteConfigPipeline(cfg config.StepConfig) {
 
 	shellCmd := strings.Join(cfg.Script, "&&")
 
+	var envVars []string
+	for k, v := range cfg.Variables {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
+	}
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:      cfg.Image,
 		WorkingDir: workdir,
 		Cmd:        []string{"/bin/sh", "-c", shellCmd},
-		Env:        []string{"FOO=BARR"},
+		Env:        envVars,
 	}, nil, nil, nil, "")
 	if err != nil {
 		panic(err)
