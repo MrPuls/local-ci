@@ -57,7 +57,9 @@ func ExecuteConfigPipeline(cfg config.StepConfig) {
 	if err != nil {
 		panic(err)
 	}
-
+	// TODO: must only copy files from the project dir. Also have to somehow determine that this is the project dir
+	// 	can be done through convention that the config should be in ./local dir and
+	//		then copy everything in the one dir above
 	var b bytes.Buffer
 	fsErr := archive.CreateFSTar(".", &b)
 	if fsErr != nil {
