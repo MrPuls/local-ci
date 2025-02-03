@@ -8,22 +8,18 @@ import (
 	"os"
 )
 
-func Start(args []string) {
-	fs := flag.NewFlagSet("start", flag.ExitOnError)
-	filePath := fs.String(
-		"f", ".local-ci/local.yaml",
-		"path to config file (defaults to .local-ci/local.yaml)",
-	)
-	fs.String("help", "", "\"start\" - to start the pipeline")
+func Execute(args []string) {
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	fs.String("help", "", "\"run\" - to start the pipeline")
 	if err := fs.Parse(args); err != nil {
 		fmt.Printf("error: %s", err)
 		return
 	}
-	fmt.Printf("Getting config from file: %v", *filePath)
+
 	pwd, _ := os.Getwd()
-	fmt.Printf("Working dir: %s\n", pwd)
+	fmt.Printf("Getting config from file: %s/.local-ci.yaml", pwd)
 	yamlConf := config.Config{}
-	err := yamlConf.GetConfig(pwd + "/" + *filePath)
+	err := yamlConf.GetConfig(pwd + "/.local-ci.yaml")
 	if err != nil {
 		panic(err)
 	}
@@ -32,6 +28,6 @@ func Start(args []string) {
 		panic(errVal)
 	}
 	for item := range yamlConf.Blocks {
-		docker.ExecuteConfigPipeline(yamlConf.Blocks[item])
+		docker.ExecuteConfigPipeline(pwd, yamlConf.Blocks[item])
 	}
 }

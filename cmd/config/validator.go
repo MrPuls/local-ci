@@ -27,13 +27,6 @@ func ValidateConfig(cfg Config) error {
 					"\nExample:\n\nsteps:\n  - echo \"Hello World!\" <- script code goes here\n", item,
 			)
 		}
-		if len(blocks[item].Variables) == 0 {
-			return fmt.Errorf(
-				"[YAML] %s block uses a \"variables\" field, but no variables were defined. "+
-					"Please add at least one script."+
-					"\nExample:\n\nvariables:\n  FOO: BAR <- key \"FOO\" cantains variable value \"BAR\"\n", item,
-			)
-		}
 	}
 	return nil
 }

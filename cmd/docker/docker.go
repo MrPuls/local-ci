@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func ExecuteConfigPipeline(cfg config.StepConfig) {
+func ExecuteConfigPipeline(wd string, cfg config.StepConfig) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
 	workdir := cfg.Workdir
@@ -34,6 +34,7 @@ func ExecuteConfigPipeline(cfg config.StepConfig) {
 	}(cli)
 
 	reader, err := cli.ImagePull(ctx, cfg.Image, image.PullOptions{})
+	fmt.Println("Image is pulled")
 	if err != nil {
 		panic(err)
 	}
@@ -48,6 +49,7 @@ func ExecuteConfigPipeline(cfg config.StepConfig) {
 	for k, v := range cfg.Variables {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
 	}
+	fmt.Println("Trying to create a container!")
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:      cfg.Image,
 		WorkingDir: workdir,
@@ -58,14 +60,16 @@ func ExecuteConfigPipeline(cfg config.StepConfig) {
 		panic(err)
 	}
 	// TODO: must only copy files from the project dir. Also have to somehow determine that this is the project dir
-	// 	can be done through convention that the config should be in ./local dir and
+	// 	can be done through convention that the config should be in ./local-ci dir and
 	//		then copy everything in the one dir above
 	var b bytes.Buffer
-	fsErr := archive.CreateFSTar(".", &b)
+	fmt.Println("Trying to create a fs tar!")
+	fsErr := archive.CreateFSTar(wd, &b)
 	if fsErr != nil {
-		return
+		panic(fsErr)
 	}
 
+	fmt.Println("Trying to copy files to container!")
 	errCpCtr := cli.CopyToContainer(ctx, resp.ID, workdir, &b, container.CopyToContainerOptions{})
 	if errCpCtr != nil {
 		panic(errCpCtr)
@@ -75,6 +79,8 @@ func ExecuteConfigPipeline(cfg config.StepConfig) {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("Trying to start a container!")
 	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		panic(err)
 	}
