@@ -8,13 +8,13 @@ import (
 	"os"
 )
 
-func Execute(args []string) {
+func run(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	fs.String("help", "", "\"run\" - to start the pipeline")
 	if err := fs.Parse(args); err != nil {
 		fmt.Printf("error: %s", err)
 		return
 	}
+	fmt.Println("Starting pipeline ...")
 
 	pwd, _ := os.Getwd()
 	fmt.Printf("Getting config from file: %s/.local-ci.yaml", pwd)
@@ -29,5 +29,12 @@ func Execute(args []string) {
 	}
 	for item := range yamlConf.Blocks {
 		docker.ExecuteConfigPipeline(pwd, yamlConf.Blocks[item])
+	}
+}
+
+func Execute(args []string) {
+	switch args[1] {
+	case "run":
+		run(args)
 	}
 }

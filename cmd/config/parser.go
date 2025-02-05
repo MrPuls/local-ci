@@ -8,14 +8,14 @@ import (
 type StepConfig struct {
 	Image     string            `yaml:"image"`
 	Script    []string          `yaml:"script"`
-	Step      string            `yaml:"step"`
+	Stage     string            `yaml:"stage"`
 	Workdir   string            `yaml:"workdir,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 }
 
 type Config struct {
 	FileName string
-	Steps    []string              `yaml:"steps"`
+	Stages   []string              `yaml:"stages"`
 	Blocks   map[string]StepConfig `yaml:",inline"`
 }
 

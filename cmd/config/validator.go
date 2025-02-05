@@ -6,7 +6,7 @@ import (
 )
 
 func ValidateConfig(cfg Config) error {
-	steps := cfg.Steps
+	steps := cfg.Stages
 	blocks := cfg.Blocks
 	if len(steps) == 0 {
 		return fmt.Errorf("[YAML] %s config file has no steps defined. "+
@@ -14,10 +14,10 @@ func ValidateConfig(cfg Config) error {
 			"\nExample:\n\nsteps:\n  - foo <- step name goes here\n", cfg.FileName)
 	}
 	for item := range blocks {
-		if !slices.Contains(steps, blocks[item].Step) {
+		if !slices.Contains(steps, blocks[item].Stage) {
 			return fmt.Errorf(
 				"[YAML] %s block uses undefined step: \"%s\"! Available steps are: %v",
-				item, blocks[item].Step, steps,
+				item, blocks[item].Stage, steps,
 			)
 		}
 		if len(blocks[item].Script) == 0 {
