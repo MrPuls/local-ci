@@ -19,7 +19,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -X main.version={{ .Version }}
+      - -X main.Version={{ .Version }}
       - -X main.CommitSHA={{ .Commit }}
       - -X main.BuildTime={{ .Date }}
     goos:
