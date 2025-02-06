@@ -2,6 +2,9 @@ stages:
   - step 1
   - step 2
 
+variables:
+  BAR: "Im a global variable"
+  FOO: "Im a global variable too!"
 
 Test:
   stage: step 1

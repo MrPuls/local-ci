@@ -49,7 +49,7 @@ For each job block in the configuration:
 - Scripts are joined with '&&' to ensure sequential execution
 - All container operations are context-aware with proper cleanup
 
-#### Environment Variables
+#### Environment GlobalVariables
 Environment variables specified in the configuration are passed directly to the container:
 ```yaml
 variables:

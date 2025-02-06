@@ -14,9 +14,10 @@ type StepConfig struct {
 }
 
 type Config struct {
-	FileName string
-	Stages   []string              `yaml:"stages"`
-	Blocks   map[string]StepConfig `yaml:",inline"`
+	FileName        string
+	Stages          []string              `yaml:"stages"`
+	Blocks          map[string]StepConfig `yaml:",inline"`
+	GlobalVariables map[string]string     `yaml:"variables,omitempty"`
 }
 
 func (c *Config) GetConfig(file string) error {

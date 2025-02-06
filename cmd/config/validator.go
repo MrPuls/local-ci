@@ -27,6 +27,13 @@ func ValidateConfig(cfg Config) error {
 					"\nExample:\n\nsteps:\n  - echo \"Hello World!\" <- script code goes here\n", item,
 			)
 		}
+		if blocks[item].Image == "" {
+			return fmt.Errorf("[YAML] %s block uses a \"image\" field, but no images were defined\n", item)
+		}
 	}
+	// TODO: split into different funcs probably, since it could become kinda long, especially with all the error text.
+	// 	Also write some tests for that.
+	//		Also would be nice to validate the field only in case if its present,
+	//		can be done with if gVar, ok := cfg.GlobalVariables; ok {}
 	return nil
 }

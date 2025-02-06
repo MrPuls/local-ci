@@ -23,3 +23,16 @@ func TestParseVariable(t *testing.T) {
 	}
 
 }
+
+func TestParseGlobalVariables(t *testing.T) {
+	cfg := Config{}
+	err := cfg.GetConfig("../../internal/test/local.yaml")
+	if err != nil {
+		t.Error("error parsing yaml")
+	}
+	t.Log(cfg.GlobalVariables)
+
+	if cfg.GlobalVariables["FOO"] != "Im a global variable too!" {
+		t.Error("global variable FOO not parsed")
+	}
+}
