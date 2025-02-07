@@ -32,6 +32,11 @@ Local CI  is a tool that allows you to run CI/CD pipelines locally using Docker 
 go install github.com/MrPuls/local-ci@latest
 ```
 
+## To check the installation
+```bash
+local-ci --version
+```
+
 ## Quick Start
 
 1. Start Docker
