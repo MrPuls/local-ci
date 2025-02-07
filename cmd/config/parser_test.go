@@ -5,6 +5,20 @@ import (
 	"testing"
 )
 
+func TestValidateConfig(t *testing.T) {
+	cfg := Config{}
+	err := cfg.GetConfig("../../internal/test/local.yaml")
+	if err != nil {
+		t.Errorf("error parsing yaml: %v", err)
+	}
+
+	validationErr := ValidateConfig(cfg)
+	if validationErr != nil {
+		t.Errorf("error validating yaml: %v", validationErr)
+	}
+
+}
+
 func TestParseVariable(t *testing.T) {
 	cfg := Config{}
 	err := cfg.GetConfig("../../internal/test/local.yaml")

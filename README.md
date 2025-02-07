@@ -5,7 +5,7 @@ Local CI  is a tool that allows you to run CI/CD pipelines locally using Docker 
 ## Features
 
 - Run CI pipeline jobs locally using Docker
-- YAML configuration similar to GitLab CI
+- Configuration using YAML format
 - Environment variable support
 - Working directory customization
 - Automatic file copying with .gitignore support

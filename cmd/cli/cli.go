@@ -27,9 +27,7 @@ func run(args []string) {
 	if errVal != nil {
 		panic(errVal)
 	}
-	for item := range yamlConf.Blocks {
-		docker.ExecuteConfigPipeline(pwd, yamlConf.Blocks[item])
-	}
+	docker.ExecuteConfigPipeline(pwd, yamlConf)
 }
 
 func Execute(args []string) {

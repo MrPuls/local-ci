@@ -12,7 +12,7 @@ By default, the tool looks for a `.local-ci.yaml` file in the current directory.
 
 ## How It Works
 
-The tool operates in several steps:
+The tool operates in several stages:
 
 ### 1. Configuration Loading
 - Reads `.local-ci.yaml` from the current working directory, 

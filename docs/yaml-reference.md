@@ -74,7 +74,7 @@ job_name:
     workdir: /app
   ```
 
-#### variables
+#### variables (block level)
 - Required: No
 - Type: Map of string key-value pairs
 - Description: Environment variables available to the job
@@ -84,6 +84,26 @@ job_name:
     variables:
       API_KEY: secret
       DEBUG: "true"
+  ```
+
+#### variables (global level)
+- Required: No
+- Type: Map of string key-value pairs
+- Description: Environment variables available to all jobs. In case of the same variable names, the local one will be prioritised
+  ```yaml
+  variables:
+    FOO: "BAR" <- global variable
+  
+  job_name_1:
+    script:
+      - echo $FOO -> "BAR"
+  
+  job_name_2:
+    variables:
+      FOO: "BAZ" <- same name as a global variable. Will be used instead of global value
+    script:
+      - echo $FOO -> "BAZ"
+  
   ```
 
 #### script
