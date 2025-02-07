@@ -42,6 +42,9 @@ go install github.com/MrPuls/local-ci@latest
 stages:
   - test
 
+variables:
+   BAR: BAZ
+
 Test:
   stage: test
   image: alpine
@@ -50,6 +53,7 @@ Test:
   script:
     - echo "Hello World"
     - echo $FOO
+    - echo $BAR
 ```
 
 3. Run the pipeline:
