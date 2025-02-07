@@ -5,7 +5,7 @@ Local CI  is a tool that allows you to run CI/CD pipelines locally using Docker 
 ## Features
 
 - Run CI pipeline jobs locally using Docker
-- YAML configuration similar to GitLab CI
+- Configuration using YAML format
 - Environment variable support
 - Working directory customization
 - Automatic file copying with .gitignore support
@@ -32,6 +32,12 @@ Local CI  is a tool that allows you to run CI/CD pipelines locally using Docker 
 go install github.com/MrPuls/local-ci@latest
 ```
 
+## To check the installation
+
+```bash
+local-ci --version
+```
+
 ## Quick Start
 
 1. Start Docker
@@ -42,6 +48,9 @@ go install github.com/MrPuls/local-ci@latest
 stages:
   - test
 
+variables:
+   BAR: BAZ
+
 Test:
   stage: test
   image: alpine
@@ -50,6 +59,7 @@ Test:
   script:
     - echo "Hello World"
     - echo $FOO
+    - echo $BAR
 ```
 
 3. Run the pipeline:

@@ -12,7 +12,7 @@ By default, the tool looks for a `.local-ci.yaml` file in the current directory.
 
 ## How It Works
 
-The tool operates in several steps:
+The tool operates in several stages:
 
 ### 1. Configuration Loading
 - Reads `.local-ci.yaml` from the current working directory, 
@@ -49,7 +49,7 @@ For each job block in the configuration:
 - Scripts are joined with '&&' to ensure sequential execution
 - All container operations are context-aware with proper cleanup
 
-#### Environment Variables
+#### Environment GlobalVariables
 Environment variables specified in the configuration are passed directly to the container:
 ```yaml
 variables:

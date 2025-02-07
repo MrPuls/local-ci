@@ -1,7 +1,5 @@
 package main
 
 var (
-	Version   = "dev"
-	CommitSHA = "unknown"
-	BuildTime = "unknown"
+	Version = "v0.0.5"
 )
