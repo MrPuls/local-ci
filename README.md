@@ -33,6 +33,7 @@ go install github.com/MrPuls/local-ci@latest
 ```
 
 ## To check the installation
+
 ```bash
 local-ci --version
 ```
