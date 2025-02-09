@@ -12,6 +12,7 @@ type StageConfig struct {
 	Stage     string            `yaml:"stage"`
 	Workdir   string            `yaml:"workdir,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
+	Cache     CacheConfig       `yaml:"cache,omitempty"`
 }
 
 type Config struct {
@@ -19,6 +20,11 @@ type Config struct {
 	Stages          []string               `yaml:"stages"`
 	Blocks          map[string]StageConfig `yaml:",inline"`
 	GlobalVariables map[string]string      `yaml:"variables,omitempty"`
+}
+
+type CacheConfig struct {
+	Key   string   `yaml:"key"`
+	Paths []string `yaml:"paths"`
 }
 
 func (c *Config) GetConfig(file string) error {
