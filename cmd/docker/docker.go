@@ -24,6 +24,7 @@ type Utils struct {
 	Variables []string
 	Scripts   string
 	Volumes   []volume.Volume
+	VolumeDir map[string]struct{}
 }
 
 func (utils *Utils) resolveWorkdir(block config.StageConfig) {
@@ -75,16 +76,24 @@ func (utils *Utils) resolveVolumes(ctx context.Context, cli *client.Client) {
 	for _, v := range volumes.Volumes {
 		if v.Name == utils.CacheKey {
 			fmt.Printf("Volume '%s' already exists\n", v.Name)
+		} else {
+			fmt.Printf("Creating volume '%s'\n", utils.CacheKey)
+
+			vlm, cErr := cli.VolumeCreate(ctx, volume.CreateOptions{Name: utils.CacheKey})
+			if cErr != nil {
+				panic(cErr)
+			}
+			utils.Volumes = append(utils.Volumes, vlm)
 		}
 	}
-	fmt.Printf("Creating volume '%s'\n", utils.CacheKey)
+}
 
-	vlm, cErr := cli.VolumeCreate(ctx, volume.CreateOptions{Name: utils.CacheKey})
-	if cErr != nil {
-		panic(cErr)
+func (utils *Utils) resolveVolumeDir(block config.StageConfig) {
+	utils.VolumeDir = make(map[string]struct{})
+	for _, dest := range block.Cache.Paths {
+		fmt.Printf("Creating volume directory '%s'\n", dest)
+		utils.VolumeDir[dest] = struct{}{}
 	}
-
-	utils.Volumes = append(utils.Volumes, vlm)
 }
 
 func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
@@ -109,6 +118,7 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 		utils.resolveCache(block)
 		utils.resolveVariables(yamlConf, block)
 		utils.resolveVolumes(ctx, cli)
+		utils.resolveVolumeDir(block)
 
 		reader, err := cli.ImagePull(ctx, utils.Image, image.PullOptions{})
 		fmt.Println("Image is pulled")
@@ -120,13 +130,20 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 			panic(errCp)
 		}
 
-		// TODO: Creates a volume but doesn't bind it to a container :c. Also add cache docs!
+		// TODO: UPD: Now it creates a volume and adds specified files to it!
+		// 	But the volume name is randomised and it's not reflected in container bounds.
+		//		Also add cache docs!
 		fmt.Println("Trying to create a container!")
+		fmt.Printf(
+			"Creating a container with config\n Image:%s,\nWorkingDir: %s,\nCmd: %s,\nEnv:%s,\nVolumes:%s\n,",
+			utils.Image, utils.Workdir, utils.Scripts, utils.Variables, utils.VolumeDir,
+		)
 		resp, err := cli.ContainerCreate(ctx, &container.Config{
 			Image:      utils.Image,
 			WorkingDir: utils.Workdir,
 			Cmd:        []string{"/bin/sh", "-c", utils.Scripts},
 			Env:        utils.Variables,
+			Volumes:    utils.VolumeDir,
 		}, &container.HostConfig{
 			Binds: utils.CacheDir,
 		}, nil, nil, cfg)
