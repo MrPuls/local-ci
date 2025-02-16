@@ -118,6 +118,23 @@ job_name:
       - go test ./...
   ```
 
+#### cache
+- Required: No
+- Types:
+  - key: Map of string key-value pair
+    - Used to uniquely identify the cache volume
+  - paths: Array of strings
+    - List of directory paths to be cached
+- Description: Specifies paths to be cached and reused across runs using Docker volumes. Each path will be mounted as a separate volume, persisting data between pipeline executions.
+- Examples:
+```yaml
+cache:
+  key: build-deps-v1    # Descriptive key to identify cache purpose
+  paths:
+    - "/.venv"          # Python virtual environment
+    - "/node_modules"   # Node.js dependencies
+    - "/build"          # Build artifacts
+```
 ## Complete Example
 
 ```yaml

@@ -26,6 +26,7 @@ type Utils struct {
 	Scripts    string
 	Volumes    volume.Volume
 	VolumeDirs map[string]struct{}
+	Mounts     []mount.Mount
 }
 
 func (utils *Utils) resolveWorkdir(block config.StageConfig) {
@@ -97,6 +98,17 @@ func (utils *Utils) resolveVolumeDir(block config.StageConfig) {
 	}
 }
 
+func (utils *Utils) resolveMounts(block config.StageConfig) {
+	for _, dest := range block.Cache.Paths {
+		fmt.Printf("Creating mount for '%s'\n", dest)
+		utils.Mounts = append(utils.Mounts, mount.Mount{
+			Type:   mount.TypeVolume,
+			Source: utils.CacheKey,
+			Target: utils.Workdir + dest,
+		})
+	}
+}
+
 func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	utils := &Utils{}
@@ -120,6 +132,7 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 		utils.resolveVariables(yamlConf, block)
 		utils.resolveVolumes(ctx, cli)
 		utils.resolveVolumeDir(block)
+		utils.resolveMounts(block)
 
 		reader, err := cli.ImagePull(ctx, utils.Image, image.PullOptions{})
 		fmt.Println("Image is pulled")
@@ -145,14 +158,7 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 			Env:        utils.Variables,
 			Volumes:    utils.VolumeDirs,
 		}, &container.HostConfig{
-			//Binds: utils.CacheDirs,
-			Mounts: []mount.Mount{
-				{
-					Type:   mount.TypeVolume,
-					Source: utils.CacheKey, // your volume name
-					Target: "/.venv",       // where it will be mounted in container
-				},
-			},
+			Mounts: utils.Mounts,
 		}, nil, nil, blockName)
 		if err != nil {
 			panic(err)
