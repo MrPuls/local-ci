@@ -131,8 +131,7 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 			panic(errCp)
 		}
 
-		// TODO: UPD: Now it creates a volume and adds specified files to it!
-		// 	But the volume name is randomised and it's not reflected in container bounds.
+		// TODO: UPD: All works, yay!
 		//		Also add cache docs!
 		fmt.Println("Trying to create a container!")
 		fmt.Printf(
@@ -144,6 +143,7 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 			WorkingDir: utils.Workdir,
 			Cmd:        []string{"/bin/sh", "-c", utils.Scripts},
 			Env:        utils.Variables,
+			Volumes:    utils.VolumeDirs,
 		}, &container.HostConfig{
 			//Binds: utils.CacheDirs,
 			Mounts: []mount.Mount{
