@@ -8,6 +8,7 @@ import (
 	"github.com/MrPuls/local-ci/cmd/config"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"io"
@@ -17,14 +18,14 @@ import (
 )
 
 type Utils struct {
-	Workdir   string
-	Image     string
-	CacheKey  string
-	CacheDir  []string
-	Variables []string
-	Scripts   string
-	Volumes   []volume.Volume
-	VolumeDir map[string]struct{}
+	Workdir    string
+	Image      string
+	CacheKey   string
+	CacheDirs  []string
+	Variables  []string
+	Scripts    string
+	Volumes    volume.Volume
+	VolumeDirs map[string]struct{}
 }
 
 func (utils *Utils) resolveWorkdir(block config.StageConfig) {
@@ -62,10 +63,10 @@ func (utils *Utils) resolveScripts(block config.StageConfig) {
 
 func (utils *Utils) resolveCache(block config.StageConfig) {
 	utils.CacheKey = block.Cache.Key
-	var dirs []string
 	for _, dest := range block.Cache.Paths {
-		dirs = append(dirs, fmt.Sprintf("%s:%s", dest, utils.Workdir+dest))
+		utils.CacheDirs = append(utils.CacheDirs, fmt.Sprintf("%s:%s", utils.CacheKey, utils.Workdir+dest))
 	}
+	fmt.Printf("Cache dirs: %v\n", utils.CacheDirs)
 }
 
 func (utils *Utils) resolveVolumes(ctx context.Context, cli *client.Client) {
@@ -74,25 +75,25 @@ func (utils *Utils) resolveVolumes(ctx context.Context, cli *client.Client) {
 		panic(err)
 	}
 	for _, v := range volumes.Volumes {
+		fmt.Printf("Inspecting volume: %s\n", v.Name)
 		if v.Name == utils.CacheKey {
 			fmt.Printf("Volume '%s' already exists\n", v.Name)
-		} else {
-			fmt.Printf("Creating volume '%s'\n", utils.CacheKey)
-
-			vlm, cErr := cli.VolumeCreate(ctx, volume.CreateOptions{Name: utils.CacheKey})
-			if cErr != nil {
-				panic(cErr)
-			}
-			utils.Volumes = append(utils.Volumes, vlm)
+			return
 		}
 	}
+	fmt.Printf("Creating volume '%s'\n", utils.CacheKey)
+	vlm, cErr := cli.VolumeCreate(ctx, volume.CreateOptions{Name: utils.CacheKey})
+	if cErr != nil {
+		panic(cErr)
+	}
+	utils.Volumes = vlm
 }
 
 func (utils *Utils) resolveVolumeDir(block config.StageConfig) {
-	utils.VolumeDir = make(map[string]struct{})
+	utils.VolumeDirs = make(map[string]struct{})
 	for _, dest := range block.Cache.Paths {
 		fmt.Printf("Creating volume directory '%s'\n", dest)
-		utils.VolumeDir[dest] = struct{}{}
+		utils.VolumeDirs[dest] = struct{}{}
 	}
 }
 
@@ -111,7 +112,7 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 		}
 	}(cli)
 
-	for cfg, block := range yamlConf.Blocks {
+	for blockName, block := range yamlConf.Blocks {
 		utils.resolveWorkdir(block)
 		utils.resolveImage(block)
 		utils.resolveScripts(block)
@@ -136,17 +137,23 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 		fmt.Println("Trying to create a container!")
 		fmt.Printf(
 			"Creating a container with config\n Image:%s,\nWorkingDir: %s,\nCmd: %s,\nEnv:%s,\nVolumes:%s\n,",
-			utils.Image, utils.Workdir, utils.Scripts, utils.Variables, utils.VolumeDir,
+			utils.Image, utils.Workdir, utils.Scripts, utils.Variables, utils.CacheDirs,
 		)
 		resp, err := cli.ContainerCreate(ctx, &container.Config{
 			Image:      utils.Image,
 			WorkingDir: utils.Workdir,
 			Cmd:        []string{"/bin/sh", "-c", utils.Scripts},
 			Env:        utils.Variables,
-			Volumes:    utils.VolumeDir,
 		}, &container.HostConfig{
-			Binds: utils.CacheDir,
-		}, nil, nil, cfg)
+			//Binds: utils.CacheDirs,
+			Mounts: []mount.Mount{
+				{
+					Type:   mount.TypeVolume,
+					Source: utils.CacheKey, // your volume name
+					Target: "/.venv",       // where it will be mounted in container
+				},
+			},
+		}, nil, nil, blockName)
 		if err != nil {
 			panic(err)
 		}
