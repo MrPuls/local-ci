@@ -144,8 +144,6 @@ func ExecuteConfigPipeline(wd string, yamlConf config.Config) {
 			panic(errCp)
 		}
 
-		// TODO: UPD: All works, yay!
-		//		Also add cache docs!
 		fmt.Println("Trying to create a container!")
 		fmt.Printf(
 			"Creating a container with config\n Image:%s,\nWorkingDir: %s,\nCmd: %s,\nEnv:%s,\nVolumes:%s\n,",
