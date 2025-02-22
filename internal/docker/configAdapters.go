@@ -14,7 +14,6 @@ type ConfigAdapter interface {
 	ToHostConfig(job job.Job) *container.HostConfig
 }
 
-// TODO: add more logs !!!
 type configAdapter struct{}
 
 func NewConfigAdapter() ConfigAdapter {
@@ -37,6 +36,7 @@ func (a *configAdapter) ToHostConfig(job job.Job) *container.HostConfig {
 }
 
 func (a *configAdapter) getScripts(scripts []string) string {
+	fmt.Println("[Docker] Preparing scripts...")
 	return strings.Join(scripts, "&&")
 }
 
@@ -47,11 +47,13 @@ func (a *configAdapter) getWorkdir(workdir string) string {
 	} else {
 		wd = workdir
 	}
+	fmt.Printf("The workdir is: %s\n", wd)
 	return wd
 }
 
 func (a *configAdapter) getVariables(variables map[string]string) []string {
 	var envVars []string
+	fmt.Println("[Docker] Getting environment variables")
 	for k, v := range variables {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
 	}
@@ -61,7 +63,7 @@ func (a *configAdapter) getVariables(variables map[string]string) []string {
 func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string) []mount.Mount {
 	var mounts []mount.Mount
 	for _, dest := range cache.Paths {
-		fmt.Printf("Creating mount for '%s'\n", dest)
+		fmt.Printf("[Docker] Creating a mount for '%s'\n", dest)
 		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
 			Source: cache.Key,

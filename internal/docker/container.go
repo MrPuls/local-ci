@@ -15,10 +15,17 @@ func NewContainerManager(cli *client.Client) *ContainerManager {
 }
 
 func makeContainerConfig(job job.Job) *container.Config {
-	return &container.Config{
-		Image:      job.GetImage(),
-		WorkingDir: job.GetWorkdir(),
-	}
+	adt := configAdapter{}
+	cfg := adt.ToContainerConfig(job)
+	return cfg
 }
 
-func (c *ContainerManager) CreateNewContainer() {}
+func makeHostConfig(job job.Job) *container.HostConfig {
+	adt := configAdapter{}
+	cfg := adt.ToHostConfig(job)
+	return cfg
+}
+
+func (c *ContainerManager) CreateNewContainer() {
+	// TODO
+}
