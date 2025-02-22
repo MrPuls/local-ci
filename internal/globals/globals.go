@@ -8,14 +8,14 @@ type Globals interface {
 }
 
 type globalsConfig struct {
-	config config.Config
+	config *config.Config
 }
 
-func (g globalsConfig) GetStages() []string { return g.config.Stages }
+func (g *globalsConfig) GetStages() []string { return g.config.Stages }
 
-func (g globalsConfig) GetGlobalVariables() map[string]string { return g.config.GlobalVariables }
+func (g *globalsConfig) GetGlobalVariables() map[string]string { return g.config.GlobalVariables }
 
-func NewConfigGlobals(cfg config.Config) Globals {
+func NewConfigGlobals(cfg *config.Config) Globals {
 	return &globalsConfig{
 		config: cfg,
 	}

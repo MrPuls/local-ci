@@ -22,15 +22,10 @@ type Job interface {
 
 type jobConfig struct {
 	name   string
-	config config.JobConfig
+	config *config.JobConfig
 }
 
-type CacheConfig interface {
-	GetKey() string
-	GetPaths() []string
-}
-
-func NewJobConfig(name string, cfg config.JobConfig) Job {
+func NewJobConfig(name string, cfg *config.JobConfig) Job {
 	return &jobConfig{
 		name:   name,
 		config: cfg,
