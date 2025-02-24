@@ -6,8 +6,8 @@ import (
 )
 
 func TestValidateConfig(t *testing.T) {
-	cfg := Config{}
-	err := cfg.ParseConfig("test.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Errorf("error parsing yaml: %v", err)
 	}
@@ -21,8 +21,8 @@ func TestValidateConfig(t *testing.T) {
 }
 
 func TestParseVariable(t *testing.T) {
-	cfg := Config{}
-	err := cfg.ParseConfig("test.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Error("error parsing yaml")
 	}
@@ -40,8 +40,8 @@ func TestParseVariable(t *testing.T) {
 }
 
 func TestParseGlobalVariables(t *testing.T) {
-	cfg := Config{}
-	err := cfg.ParseConfig("test.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Error("error parsing yaml")
 	}
@@ -53,8 +53,8 @@ func TestParseGlobalVariables(t *testing.T) {
 }
 
 func TestParseCache(t *testing.T) {
-	cfg := Config{}
-	err := cfg.ParseConfig("test.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Error("error parsing yaml")
 	}

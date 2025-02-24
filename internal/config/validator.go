@@ -5,7 +5,7 @@ import (
 	"slices"
 )
 
-func ValidateConfig(cfg Config) error {
+func ValidateConfig(cfg *Config) error {
 	stages := cfg.Stages
 	blocks := cfg.Jobs
 

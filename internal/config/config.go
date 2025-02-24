@@ -27,8 +27,14 @@ type CacheConfig struct {
 	Paths []string `yaml:"paths"`
 }
 
-func (c *Config) ParseConfig(file string) error {
-	yamlFile, err := os.ReadFile(file)
+func NewConfig(file string) *Config {
+	return &Config{
+		FileName: file,
+	}
+}
+
+func (c *Config) LoadConfig() error {
+	yamlFile, err := os.ReadFile(c.FileName)
 	if err != nil {
 		return err
 	}
@@ -37,6 +43,5 @@ func (c *Config) ParseConfig(file string) error {
 		return fmt.Errorf(
 			"error reading config file, please make sure that all stages are correctly defined\n %w", err)
 	}
-	c.FileName = file
 	return nil
 }

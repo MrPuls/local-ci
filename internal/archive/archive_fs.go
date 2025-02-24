@@ -1,4 +1,4 @@
-package archiver
+package archive
 
 import (
 	"archive/tar"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func CreateFSTar(src string, dest *bytes.Buffer) error {
+func getIgnorePatterns(src string) ([]string, error) {
 	// Read .gitignore if it exists
 	var ignorePatterns []string // default patterns we always want to ignore
 	gitignorePath := filepath.Join(src, ".gitignore")
@@ -26,7 +26,14 @@ func CreateFSTar(src string, dest *bytes.Buffer) error {
 			}
 		}
 	}
+	return ignorePatterns, nil
+}
 
+func CreateFSTar(src string, dest *bytes.Buffer) error {
+	ignorePatterns, err := getIgnorePatterns(src)
+	if err != nil {
+		return err
+	}
 	tw := tar.NewWriter(dest)
 	defer tw.Close()
 
