@@ -59,20 +59,20 @@ func (e *Executor) Execute(ctx context.Context, job job.Job) error {
 
 	log.Println("Trying to copy files to container...")
 	// options could be switched to adapter type if needed more customization
-	copyErr := cm.CopyToContainer(ctx, containerResp.ID, wd, &b, container.CopyToContainerOptions{})
+	copyErr := cm.CopyToContainer(ctx, e.containerID, job.GetWorkdir(), &b, container.CopyToContainerOptions{})
 	if copyErr != nil {
 		return copyErr
 	}
 
 	log.Println("Attaching logger to container...")
-	logs, logErr := cm.AttachLogger(ctx, containerResp.ID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
+	logs, logErr := cm.AttachLogger(ctx, e.containerID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
 	if logErr != nil {
 		return logErr
 	}
 	defer logs.Close()
 
 	log.Println("Trying to start a container...")
-	if startErr := cm.StartContainer(ctx, containerResp.ID, container.StartOptions{}); startErr != nil {
+	if startErr := cm.StartContainer(ctx, e.containerID, container.StartOptions{}); startErr != nil {
 		return startErr
 	}
 
@@ -82,7 +82,7 @@ func (e *Executor) Execute(ctx context.Context, job job.Job) error {
 	}
 
 	log.Println("Waiting for container to finish...")
-	statusCh, errCh := cm.WaitForContainer(ctx, containerResp.ID, container.WaitConditionNotRunning)
+	statusCh, errCh := cm.WaitForContainer(ctx, e.containerID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {

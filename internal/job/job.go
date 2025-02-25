@@ -3,6 +3,7 @@ package job
 import (
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/globals"
+	"log"
 )
 
 type Job struct {
@@ -19,10 +20,16 @@ func NewJobConfig(name string, cfg config.JobConfig, globalVariables globals.Var
 	}
 }
 
-func (c *Job) GetName() string      { return c.name }
-func (c *Job) GetStage() string     { return c.config.Stage }
-func (c *Job) GetImage() string     { return c.config.Image }
-func (c *Job) GetWorkdir() string   { return c.config.Workdir }
+func (c *Job) GetName() string  { return c.name }
+func (c *Job) GetStage() string { return c.config.Stage }
+func (c *Job) GetImage() string { return c.config.Image }
+func (c *Job) GetWorkdir() string {
+	if c.config.Workdir == "" {
+		c.config.Workdir = "/"
+	}
+	log.Printf("The workdir is: %s\n", c.config.Workdir)
+	return c.config.Workdir
+}
 func (c *Job) GetScripts() []string { return c.config.Script }
 func (c *Job) GetVariables() map[string]string {
 	// Create a new map to avoid modifying the original config

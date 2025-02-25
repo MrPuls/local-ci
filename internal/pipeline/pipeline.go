@@ -48,6 +48,7 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		// Execute jobs in this stage (potentially in parallel later)
 		for _, j := range stageJobs {
 			if err := p.executor.Execute(ctx, j); err != nil {
+				// TODO: If job fails for any reason, cleanup should be called
 				return fmt.Errorf("job %s failed: %w", j.GetName(), err)
 			}
 

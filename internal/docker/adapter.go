@@ -7,6 +7,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"log"
+	"path/filepath"
 	"strings"
 )
 
@@ -24,7 +25,7 @@ func NewConfigAdapter() ConfigAdapter {
 func (a *configAdapter) ToContainerConfig(job job.Job) *container.Config {
 	return &container.Config{
 		Image:      job.GetImage(),
-		WorkingDir: a.getWorkdir(job.GetWorkdir()),
+		WorkingDir: job.GetWorkdir(),
 		Cmd:        []string{"/bin/sh", "-c", a.buildCmd(job.GetScripts())},
 		Env:        a.transformEnvVars(job.GetVariables()),
 	}
@@ -39,17 +40,6 @@ func (a *configAdapter) ToHostConfig(job job.Job) *container.HostConfig {
 func (a *configAdapter) buildCmd(scripts []string) string {
 	log.Println("[Docker] Preparing scripts...")
 	return strings.Join(scripts, "&&")
-}
-
-func (a *configAdapter) getWorkdir(workdir string) string {
-	var wd string
-	if workdir == "" {
-		wd = "/"
-	} else {
-		wd = workdir
-	}
-	log.Printf("The workdir is: %s\n", wd)
-	return wd
 }
 
 func (a *configAdapter) transformEnvVars(variables map[string]string) []string {
@@ -72,12 +62,25 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string) []m
 
 	var mounts []mount.Mount
 	for _, dest := range cache.Paths {
-		log.Printf("[Docker] Creating a mount for '%s'\n", dest)
+		// Ensure we have an absolute path
+		target := workdir
+		if !strings.HasSuffix(workdir, "/") && !strings.HasPrefix(dest, "/") {
+			target += "/"
+		}
+		target += dest
+
+		// Ensure the final path is absolute
+		if !filepath.IsAbs(target) {
+			target = "/" + target
+		}
+
+		fmt.Printf("[Docker] Creating a mount for '%s'\n", target)
 		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
 			Source: cache.Key,
-			Target: workdir + dest,
+			Target: target,
 		})
 	}
+
 	return mounts
 }
