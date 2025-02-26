@@ -49,11 +49,8 @@ local-ci --version
 # Run using default .local-ci.yaml in current directory
 local-ci run
 
-# Run with a specific config file
+# Run with a specific config file using --config/-c flag
 local-ci run --config my-pipeline.yaml
-
-# Run a specific job only
-local-ci run --job JobName
 ```
 
 ## Quick Start
