@@ -9,6 +9,8 @@ variables:
 Test:
   stage: step 1
   image: alpine
+  network:
+    host_access: true
   variables:
     FOO: BAR
     BAZ: EGGS

@@ -72,3 +72,18 @@ func TestParseCache(t *testing.T) {
 		}
 	}
 }
+
+func TestParseNetwork(t *testing.T) {
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
+	if err != nil {
+		t.Error("error parsing yaml")
+	}
+	if cfg.Jobs["Test"].Network == nil {
+		t.Log("network not present")
+	} else {
+		if cfg.Jobs["Test"].Network.HostAccess != true {
+			t.Errorf("network host access should be true. got: %v", cfg.Jobs["Test"].Network)
+		}
+	}
+}
