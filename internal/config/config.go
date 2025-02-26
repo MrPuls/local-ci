@@ -8,6 +8,7 @@ import (
 
 type NetworkConfig struct {
 	HostAccess bool `yaml:"host_access,omitempty"`
+	HostMode   bool `yaml:"host_mode,omitempty"`
 }
 
 type CacheConfig struct {

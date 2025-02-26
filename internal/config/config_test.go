@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -63,12 +64,14 @@ func TestParseCache(t *testing.T) {
 	if cfg.Jobs["Test"].Cache == nil {
 		t.Log("cache not present")
 	} else {
-		if cfg.Jobs["Test"].Cache.Key != "deps" {
+		if cfg.Jobs["Test"].Cache.Key != "cache" {
 			t.Errorf("cache key invalid, expected 'deps', got '%v'", cfg.Jobs["Test"].Cache.Key)
 		}
 
-		if cfg.Jobs["Test"].Cache.Paths[0] != "./venv" {
-			t.Errorf("cache path value invalid, expected './venv', got '%v'", cfg.Jobs["Test"].Cache.Paths[0])
+		for _, v := range cfg.Jobs["Test"].Cache.Paths {
+			if !slices.Contains([]string{".npm", "node_modules"}, v) {
+				t.Errorf("cache path value invalid, expected '[.npm, node_modules]', got '%v'", v)
+			}
 		}
 	}
 }

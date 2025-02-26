@@ -48,4 +48,5 @@ func (c *Job) GetVariables() map[string]string {
 
 	return vars
 }
-func (c *Job) GetCache() *config.CacheConfig { return c.config.Cache }
+func (c *Job) GetCache() *config.CacheConfig     { return c.config.Cache }
+func (c *Job) GetNetwork() *config.NetworkConfig { return c.config.Network }
