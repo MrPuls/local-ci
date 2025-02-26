@@ -6,8 +6,8 @@ import (
 )
 
 func TestValidateConfig(t *testing.T) {
-	cfg := Config{}
-	err := cfg.GetConfig("../../internal/test/local.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Errorf("error parsing yaml: %v", err)
 	}
@@ -21,27 +21,27 @@ func TestValidateConfig(t *testing.T) {
 }
 
 func TestParseVariable(t *testing.T) {
-	cfg := Config{}
-	err := cfg.GetConfig("../../internal/test/local.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Error("error parsing yaml")
 	}
 	var variables []string
-	for k, v := range cfg.Blocks["Test"].Variables {
+	for k, v := range cfg.Jobs["Test"].Variables {
 		variables = append(variables, fmt.Sprintf("%s=%s", k, v))
 	}
-	t.Log(cfg.Blocks)
+	t.Log(cfg.Jobs)
 	t.Log(variables)
 
-	if len(variables) != len(cfg.Blocks["Test"].Variables) {
+	if len(variables) != len(cfg.Jobs["Test"].Variables) {
 		t.Error("variables were not parsed")
 	}
 
 }
 
 func TestParseGlobalVariables(t *testing.T) {
-	cfg := Config{}
-	err := cfg.GetConfig("../../internal/test/local.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Error("error parsing yaml")
 	}
@@ -53,18 +53,22 @@ func TestParseGlobalVariables(t *testing.T) {
 }
 
 func TestParseCache(t *testing.T) {
-	cfg := Config{}
-	err := cfg.GetConfig("../../internal/test/local.yaml")
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
 	if err != nil {
 		t.Error("error parsing yaml")
 	}
-	if cfg.Blocks["Test"].Cache.Key != "" && len(cfg.Blocks["Test"].Cache.Paths) != 0 {
-		if cfg.Blocks["Test"].Cache.Key != "deps" {
-			t.Errorf("cache key invalid, expected 'deps', got '%v'", cfg.Blocks["Test"].Cache.Key)
+	// TODO: This should be a different scenarios, either a different yaml or a mock
+	// 	with the check like "if cache is present in yaml in should not be nil"
+	if cfg.Jobs["Test"].Cache == nil {
+		t.Log("cache not present")
+	} else {
+		if cfg.Jobs["Test"].Cache.Key != "deps" {
+			t.Errorf("cache key invalid, expected 'deps', got '%v'", cfg.Jobs["Test"].Cache.Key)
 		}
 
-		if cfg.Blocks["Test"].Cache.Paths[0] != "./venv" {
-			t.Errorf("cache path value invalid, expected './venv', got '%v'", cfg.Blocks["Test"].Cache.Paths[0])
+		if cfg.Jobs["Test"].Cache.Paths[0] != "./venv" {
+			t.Errorf("cache path value invalid, expected './venv', got '%v'", cfg.Jobs["Test"].Cache.Paths[0])
 		}
 	}
 }

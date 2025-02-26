@@ -5,9 +5,9 @@ import (
 	"slices"
 )
 
-func ValidateConfig(cfg Config) error {
+func ValidateConfig(cfg *Config) error {
 	stages := cfg.Stages
-	blocks := cfg.Blocks
+	blocks := cfg.Jobs
 
 	if len(stages) == 0 {
 		return fmt.Errorf("[YAML] %s config file has no stages defined. "+
@@ -35,7 +35,7 @@ func ValidateConfig(cfg Config) error {
 		if v.Image == "" {
 			return fmt.Errorf("[YAML] Image is empty or undefined in block \"%s\"\n", k)
 		}
-		if v.Cache.Key != "" && len(v.Cache.Paths) != 0 {
+		if v.Cache != nil {
 			if v.Cache.Key == "" {
 				return fmt.Errorf("[YAML] Cache must have a key defined in block \"%s\"\n", k)
 			}

@@ -6,20 +6,20 @@ import (
 	"os"
 )
 
-type StageConfig struct {
+type JobConfig struct {
 	Image     string            `yaml:"image"`
 	Script    []string          `yaml:"script"`
 	Stage     string            `yaml:"stage"`
 	Workdir   string            `yaml:"workdir,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
-	Cache     CacheConfig       `yaml:"cache,omitempty"`
+	Cache     *CacheConfig      `yaml:"cache,omitempty"`
 }
 
 type Config struct {
 	FileName        string
-	Stages          []string               `yaml:"stages"`
-	Blocks          map[string]StageConfig `yaml:",inline"`
-	GlobalVariables map[string]string      `yaml:"variables,omitempty"`
+	Stages          []string             `yaml:"stages"`
+	Jobs            map[string]JobConfig `yaml:",inline"`
+	GlobalVariables map[string]string    `yaml:"variables,omitempty"`
 }
 
 type CacheConfig struct {
@@ -27,8 +27,14 @@ type CacheConfig struct {
 	Paths []string `yaml:"paths"`
 }
 
-func (c *Config) GetConfig(file string) error {
-	yamlFile, err := os.ReadFile(file)
+func NewConfig(file string) *Config {
+	return &Config{
+		FileName: file,
+	}
+}
+
+func (c *Config) LoadConfig() error {
+	yamlFile, err := os.ReadFile(c.FileName)
 	if err != nil {
 		return err
 	}
@@ -37,6 +43,5 @@ func (c *Config) GetConfig(file string) error {
 		return fmt.Errorf(
 			"error reading config file, please make sure that all stages are correctly defined\n %w", err)
 	}
-	c.FileName = file
 	return nil
 }
