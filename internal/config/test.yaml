@@ -9,6 +9,13 @@ variables:
 Test:
   stage: step 1
   image: alpine
+  network:
+    host_access: true
+  cache:
+    key: cache
+    paths:
+      - ".npm"
+      - "node_modules"
   variables:
     FOO: BAR
     BAZ: EGGS

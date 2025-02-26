@@ -6,6 +6,16 @@ import (
 	"os"
 )
 
+type NetworkConfig struct {
+	HostAccess bool `yaml:"host_access,omitempty"`
+	HostMode   bool `yaml:"host_mode,omitempty"`
+}
+
+type CacheConfig struct {
+	Key   string   `yaml:"key"`
+	Paths []string `yaml:"paths"`
+}
+
 type JobConfig struct {
 	Image     string            `yaml:"image"`
 	Script    []string          `yaml:"script"`
@@ -13,6 +23,7 @@ type JobConfig struct {
 	Workdir   string            `yaml:"workdir,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 	Cache     *CacheConfig      `yaml:"cache,omitempty"`
+	Network   *NetworkConfig    `yaml:"network,omitempty"`
 }
 
 type Config struct {
@@ -20,11 +31,6 @@ type Config struct {
 	Stages          []string             `yaml:"stages"`
 	Jobs            map[string]JobConfig `yaml:",inline"`
 	GlobalVariables map[string]string    `yaml:"variables,omitempty"`
-}
-
-type CacheConfig struct {
-	Key   string   `yaml:"key"`
-	Paths []string `yaml:"paths"`
 }
 
 func NewConfig(file string) *Config {

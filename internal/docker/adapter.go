@@ -33,7 +33,9 @@ func (a *configAdapter) ToContainerConfig(job job.Job) *container.Config {
 
 func (a *configAdapter) ToHostConfig(job job.Job) *container.HostConfig {
 	return &container.HostConfig{
-		Mounts: a.getMounts(job.GetCache(), job.GetWorkdir()),
+		Mounts:      a.getMounts(job.GetCache(), job.GetWorkdir()),
+		NetworkMode: a.getNetworkMode(job.GetNetwork()),
+		ExtraHosts:  a.getExtraHosts(job.GetNetwork()),
 	}
 }
 
@@ -83,4 +85,20 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string) []m
 	}
 
 	return mounts
+}
+
+func (a *configAdapter) getNetworkMode(jobNetwork *config.NetworkConfig) container.NetworkMode {
+	var networkMode container.NetworkMode
+	if jobNetwork.HostAccess {
+		networkMode = "host"
+	}
+	return networkMode
+}
+
+func (a *configAdapter) getExtraHosts(jobNetwork *config.NetworkConfig) []string {
+	var extraHosts []string
+	if jobNetwork.HostMode {
+		extraHosts = append(extraHosts, "host.docker.internal:host-gateway")
+	}
+	return extraHosts
 }
