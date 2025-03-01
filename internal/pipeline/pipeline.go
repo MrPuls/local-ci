@@ -13,6 +13,8 @@ type Executor interface {
 	Cleanup(ctx context.Context) error
 }
 
+// TODO: perhaps separate configs for a general pipeline and a custom pipeline with specified jobs only
+
 type Pipeline struct {
 	executor  Executor
 	jobs      []job.Job
@@ -32,6 +34,11 @@ func NewPipeline(executor Executor, stages globals.Stages, variables globals.Var
 	}
 
 	return pipeline
+}
+
+func NewJobSpecificPipeline(executor Executor, variables globals.Variables, jobName string) *Pipeline {
+	// TODO
+	return &Pipeline{}
 }
 
 func (p *Pipeline) Run(ctx context.Context) error {

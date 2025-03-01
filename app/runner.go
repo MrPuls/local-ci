@@ -17,7 +17,7 @@ func NewRunner() *Runner {
 	return &Runner{}
 }
 
-func (r *Runner) Run(configFile string) error {
+func (r *Runner) Run(configFile string, jobName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
 
@@ -29,7 +29,7 @@ func (r *Runner) Run(configFile string) error {
 	}
 
 	// 2. Validate configuration
-	if err := config.ValidateConfig(cfg); err != nil {
+	if err := config.ValidateConfig(cfg, jobName); err != nil {
 		return err
 	}
 
@@ -48,6 +48,11 @@ func (r *Runner) Run(configFile string) error {
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	// 5. Create and run pipeline
+	if jobName != "" {
+		// TODO
+		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName)
+		return p.Run(ctx)
+	}
 	p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
 	return p.Run(ctx)
 }
