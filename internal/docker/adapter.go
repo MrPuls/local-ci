@@ -33,7 +33,7 @@ func (a *configAdapter) ToContainerConfig(job job.Job) *container.Config {
 
 func (a *configAdapter) ToHostConfig(job job.Job) *container.HostConfig {
 	return &container.HostConfig{
-		Mounts:      a.getMounts(job.GetCache(), job.GetWorkdir()),
+		Mounts:      a.getMounts(job.GetCache(), job.GetWorkdir(), job.GetName()),
 		NetworkMode: a.getNetworkMode(job.GetNetwork()),
 		ExtraHosts:  a.getExtraHosts(job.GetNetwork()),
 	}
@@ -57,16 +57,16 @@ func (a *configAdapter) transformEnvVars(variables map[string]string) []string {
 	return envVars
 }
 
-func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string) []mount.Mount {
+func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string, jobName string) []mount.Mount {
 	if cache == nil {
 		return nil
 	}
 
 	var mounts []mount.Mount
 	for _, dest := range cache.Paths {
-		// Ensure we have an absolute path
 		target := workdir
-		if !strings.HasSuffix(workdir, "/") && !strings.HasPrefix(dest, "/") {
+		// Ensure we have an absolute path
+		if !strings.HasSuffix(target, "/") && !strings.HasPrefix(dest, "/") {
 			target += "/"
 		}
 		target += dest
@@ -75,11 +75,14 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string) []m
 		if !filepath.IsAbs(target) {
 			target = "/" + target
 		}
+		// Create a safe volume name
+		safePath := strings.ReplaceAll(target, "/", "-")
+		sourceName := fmt.Sprintf("%s-%s%s", jobName, cache.Key, safePath)
 
-		fmt.Printf("[Docker] Creating a mount for '%s'\n", target)
+		fmt.Printf("[Docker] Creating mount: %s -> %s\n", sourceName, target)
 		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
-			Source: cache.Key,
+			Source: sourceName,
 			Target: target,
 		})
 	}

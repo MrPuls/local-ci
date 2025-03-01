@@ -3,7 +3,6 @@ package job
 import (
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/globals"
-	"log"
 )
 
 type Job struct {
@@ -27,7 +26,6 @@ func (c *Job) GetWorkdir() string {
 	if c.config.Workdir == "" {
 		c.config.Workdir = "/"
 	}
-	log.Printf("The workdir is: %s\n", c.config.Workdir)
 	return c.config.Workdir
 }
 func (c *Job) GetScripts() []string { return c.config.Script }
