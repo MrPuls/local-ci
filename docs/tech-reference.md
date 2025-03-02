@@ -1,5 +1,20 @@
 # Technical Reference and CLI Usage
 
+## Table of Contents
+- [Command Line Interface](#command-line-interface)
+- [Architecture](#architecture)
+- [Pipeline Execution Flow](#pipeline-execution-flow)
+   - [1. Configuration Loading and Validation](#1-configuration-loading-and-validation)
+   - [2. Pipeline Orchestration](#2-pipeline-orchestration)
+   - [3. Job Execution](#3-job-execution)
+- [Technical Details](#technical-details)
+   - [Container Management](#container-management)
+   - [Environment Variables](#environment-variables)
+   - [File System Handling](#file-system-handling)
+   - [Caching System](#caching-system)
+   - [Job-Specific Execution](#job-specific-execution)
+- [Limitations and Notes](#limitations-and-notes)
+
 ## Command Line Interface
 
 Local CI features a simple but powerful command-line interface:
@@ -135,14 +150,83 @@ JobName:
       - .npm/
 ```
 
+### Job-Specific Execution
+
+Local CI allows running individual jobs instead of the full pipeline:
+
+```bash
+local-ci run --job JobName
+```
+
+#### How It Works
+
+When running a specific job:
+
+1. **Bypasses Stage Ordering**:
+   - Only the specified job runs, regardless of its stage
+   - Stage dependencies are not enforced
+
+2. **Direct Execution**:
+   - The job is extracted directly from the configuration
+   - All job features (caching, environment variables, etc.) work normally
+
+3. **Standard Error Handling**:
+   - Error handling and cleanup remain consistent with pipeline execution
+
+#### Use Cases
+
+Running specific jobs is useful for:
+
+- Debugging problematic jobs without running the entire pipeline
+- Testing configuration changes quickly
+- Running utility or deployment jobs independently
+- Fast iteration during development
+
+#### Example
+
+Given this configuration:
+
+```yaml
+stages:
+  - build
+  - test
+  - deploy
+
+Build:
+  stage: build
+  image: golang:1.21
+  script:
+    - go build -o myapp
+
+Test:
+  stage: test
+  image: golang:1.21
+  script:
+    - go test ./...
+
+Deploy:
+  stage: deploy
+  image: alpine
+  script:
+    - echo "Deploying..."
+```
+
+You can run just the Test job:
+
+```bash
+local-ci run --job Test
+```
+
+This will execute only the Test job, skipping the Build and Deploy stages.
+
 ## Limitations and Notes
 
 1. **Current Limitations**:
    - Single-node execution only
    - Sequential execution within stages
    - Fixed one-hour timeout
+   - Job-specific execution bypasses stage dependencies
 
 2. **Future Enhancements**:
    - Parallel job execution within stages
-   - Integration with host network for testing against localhost
    - Persistent services support

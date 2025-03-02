@@ -27,9 +27,10 @@ func ValidateConfig(cfg *Config) error {
 		}
 		if len(v.Script) == 0 {
 			return fmt.Errorf(
-				"[YAML] \"%s\" block uses a \"script\" field, but no scripts were defined. "+
-					"Please add at least one script."+
-					"\nExample:\n\nstages:\n  - echo \"Hello World!\" <- script code goes here\n", k,
+				"[YAML] \"%s\" block has no scripts defined. "+
+					"Please make sure that you are using the 'script' keyword\n"+
+					"If you do, please add at least one script."+
+					"\nExample:\n\nscript:\n  - echo \"Hello World!\" <- script code goes here\n", k,
 			)
 		}
 		if v.Image == "" {

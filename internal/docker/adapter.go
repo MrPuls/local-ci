@@ -79,7 +79,7 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string, job
 		safePath := strings.ReplaceAll(target, "/", "-")
 		sourceName := fmt.Sprintf("%s-%s%s", jobName, cache.Key, safePath)
 
-		fmt.Printf("[Docker] Creating mount: %s -> %s\n", sourceName, target)
+		log.Printf("[Docker] Creating mount: %s -> %s\n", sourceName, target)
 		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
 			Source: sourceName,
@@ -91,6 +91,10 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string, job
 }
 
 func (a *configAdapter) getNetworkMode(jobNetwork *config.NetworkConfig) container.NetworkMode {
+	if jobNetwork == nil {
+		return ""
+	}
+	log.Println("[Docker] Resolving network mode")
 	var networkMode container.NetworkMode
 	if jobNetwork.HostAccess {
 		networkMode = "host"
@@ -99,6 +103,10 @@ func (a *configAdapter) getNetworkMode(jobNetwork *config.NetworkConfig) contain
 }
 
 func (a *configAdapter) getExtraHosts(jobNetwork *config.NetworkConfig) []string {
+	if jobNetwork == nil {
+		return nil
+	}
+	log.Println("[Docker] Resolving extra hosts")
 	var extraHosts []string
 	if jobNetwork.HostMode {
 		extraHosts = append(extraHosts, "host.docker.internal:host-gateway")

@@ -17,20 +17,20 @@ func NewRunner() *Runner {
 	return &Runner{}
 }
 
-func (r *Runner) Run(configFile string) error {
+func (r *Runner) Run(configFile string, jobName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
 
 	// 1. Load configuration
 	cfg := config.NewConfig(configFile)
-	err := cfg.LoadConfig()
-	if err != nil {
-		return err
+	configLoadErr := cfg.LoadConfig()
+	if configLoadErr != nil {
+		return configLoadErr
 	}
 
 	// 2. Validate configuration
-	if err := config.ValidateConfig(cfg); err != nil {
-		return err
+	if validatorErr := config.ValidateConfig(cfg); validatorErr != nil {
+		return validatorErr
 	}
 
 	// 3. Create globals
@@ -48,6 +48,12 @@ func (r *Runner) Run(configFile string) error {
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	// 5. Create and run pipeline
-	p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
-	return p.Run(ctx)
+	if jobName != "" {
+		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, cfg)
+		return p.Run(ctx)
+	} else {
+		p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
+		return p.Run(ctx)
+
+	}
 }
