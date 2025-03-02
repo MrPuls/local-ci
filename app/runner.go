@@ -49,10 +49,11 @@ func (r *Runner) Run(configFile string, jobName string) error {
 
 	// 5. Create and run pipeline
 	if jobName != "" {
-		// TODO
-		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName)
+		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, cfg.Jobs[jobName])
 		return p.Run(ctx)
+	} else {
+		p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
+		return p.Run(ctx)
+
 	}
-	p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
-	return p.Run(ctx)
 }
