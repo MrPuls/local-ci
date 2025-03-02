@@ -5,7 +5,7 @@ import (
 	"slices"
 )
 
-func ValidateConfig(cfg *Config, jobName string) error {
+func ValidateConfig(cfg *Config) error {
 	stages := cfg.Stages
 	blocks := cfg.Jobs
 
@@ -13,11 +13,6 @@ func ValidateConfig(cfg *Config, jobName string) error {
 		return fmt.Errorf("[YAML] %s config file has no stages defined. "+
 			"Please add at least one stage."+
 			"\nExample:\n\nstages:\n  - foo <- stage name goes here\n", cfg.FileName)
-	}
-	if jobName != "" {
-		if _, ok := blocks[jobName]; !ok {
-			return fmt.Errorf("[YAML] %s config file has no job named %s. ", cfg.FileName, jobName)
-		}
 	}
 
 	for k, v := range blocks {

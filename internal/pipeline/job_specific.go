@@ -10,24 +10,26 @@ import (
 
 type JobSpecificPipeline struct {
 	executor  Executor
-	jobConfig config.JobConfig
+	config    *config.Config
 	jobName   string
 	variables globals.Variables
 }
 
-func NewJobSpecificPipeline(executor Executor, variables globals.Variables, jobName string, jobConfig config.JobConfig) *JobSpecificPipeline {
+func NewJobSpecificPipeline(executor Executor, variables globals.Variables, jobName string, config *config.Config) *JobSpecificPipeline {
 	return &JobSpecificPipeline{
 		executor:  executor,
-		jobConfig: jobConfig,
+		config:    config,
 		jobName:   jobName,
 		variables: variables,
 	}
 }
 
 func (p *JobSpecificPipeline) Run(ctx context.Context) error {
-
+	if _, ok := p.config.Jobs[p.jobName]; !ok {
+		return fmt.Errorf("Job %q does not exist in file %q. ", p.jobName, p.config.FileName)
+	}
 	// Create the job from config
-	j := job.NewJobConfig(p.jobName, p.jobConfig, p.variables)
+	j := job.NewJobConfig(p.jobName, p.config.Jobs[p.jobName], p.variables)
 
 	// Execute the job
 	if err := p.executor.Execute(ctx, j); err != nil {

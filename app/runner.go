@@ -23,14 +23,14 @@ func (r *Runner) Run(configFile string, jobName string) error {
 
 	// 1. Load configuration
 	cfg := config.NewConfig(configFile)
-	err := cfg.LoadConfig()
-	if err != nil {
-		return err
+	configLoadErr := cfg.LoadConfig()
+	if configLoadErr != nil {
+		return configLoadErr
 	}
 
 	// 2. Validate configuration
-	if err := config.ValidateConfig(cfg, jobName); err != nil {
-		return err
+	if validatorErr := config.ValidateConfig(cfg); validatorErr != nil {
+		return validatorErr
 	}
 
 	// 3. Create globals
@@ -49,7 +49,7 @@ func (r *Runner) Run(configFile string, jobName string) error {
 
 	// 5. Create and run pipeline
 	if jobName != "" {
-		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, cfg.Jobs[jobName])
+		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, cfg)
 		return p.Run(ctx)
 	} else {
 		p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
