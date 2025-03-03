@@ -7,6 +7,7 @@ import (
 	"github.com/MrPuls/local-ci/internal/globals"
 	"github.com/MrPuls/local-ci/internal/pipeline"
 	"github.com/docker/docker/client"
+	"log"
 	"time"
 )
 
@@ -42,7 +43,12 @@ func (r *Runner) Run(configFile string, jobName string) error {
 	if err != nil {
 		return err
 	}
-	defer dockerClient.Close()
+	defer func(dockerClient *client.Client) {
+		err := dockerClient.Close()
+		if err != nil {
+			log.Printf("Error closing docker client: %v", err)
+		}
+	}(dockerClient)
 
 	adapter := docker.NewConfigAdapter()
 	executor := docker.NewDockerExecutor(dockerClient, adapter)

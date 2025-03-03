@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	version = "0.0.11"
+	version = "0.0.12"
 )
 
 // rootCmd represents the base command
