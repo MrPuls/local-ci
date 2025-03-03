@@ -35,13 +35,26 @@ func (e *Executor) Execute(ctx context.Context, job job.Job) error {
 		return wdErr
 	}
 
-	log.Println("Pulling image...")
 	// options could be switched to adapter type if needed more customization
-	_, pullErr := im.PullImage(ctx, job.GetImage(), image.PullOptions{})
+	reader, pullErr := im.PullImage(ctx, job.GetImage(), image.PullOptions{})
 	if pullErr != nil {
 		return pullErr
 	}
 
+	defer func(reader io.ReadCloser) {
+		err := reader.Close()
+		if err != nil {
+			log.Printf("Error closing image pull reader: %v", err)
+		}
+	}(reader)
+
+	// Or io.Copy(ioutil.Discard, reader) is we don't want to stream it to stdout
+	_, readerErr := io.Copy(os.Stdout, reader)
+	if readerErr != nil {
+		return readerErr
+	}
+
+	log.Println("Image is pulled...")
 	log.Println("Start container creation...")
 	containerResp, createErr := cm.CreateContainer(ctx, job)
 	if createErr != nil {

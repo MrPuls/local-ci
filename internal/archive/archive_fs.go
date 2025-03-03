@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,7 +36,12 @@ func CreateFSTar(src string, dest *bytes.Buffer) error {
 		return err
 	}
 	tw := tar.NewWriter(dest)
-	defer tw.Close()
+	defer func(tw *tar.Writer) {
+		err := tw.Close()
+		if err != nil {
+			log.Printf("Error closing tar writer: %v", err)
+		}
+	}(tw)
 
 	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -78,7 +84,14 @@ func CreateFSTar(src string, dest *bytes.Buffer) error {
 			if err != nil {
 				return err
 			}
-			defer file.Close()
+
+			defer func(file *os.File) {
+				err := file.Close()
+				if err != nil {
+					log.Printf("Error closing tar file: %v", err)
+				}
+			}(file)
+
 			_, err = io.Copy(tw, file)
 			return err
 		}
