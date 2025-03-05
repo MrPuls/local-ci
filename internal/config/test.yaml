@@ -28,6 +28,28 @@ Test:
     - echo $BAZ >> foo.txt
     - cat foo.txt
 
+Test3:
+  stage: step 2
+  image: gradle:jdk23-corretto
+  network:
+    host_mode: true
+  cache:
+    key: gradle_build
+    paths:
+      - ".gradle"
+      - "build"
+  variables:
+    FOO: "Overwrite the global variable FOO"
+    BAZ: "Overwrite the global variable BAZ"
+  script:
+    - echo "Hello World"
+    - echo $FOO
+    - touch foo.txt
+    - sleep 5
+    - echo "Hello from txt file" >> foo.txt
+    - echo $BAZ >> foo.txt
+    - cat foo.txt
+
 #Test2:
 #  step: step 2
 #  image: alpine
