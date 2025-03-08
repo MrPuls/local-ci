@@ -33,17 +33,7 @@ func (p *JobSpecificPipeline) Run(ctx context.Context) error {
 
 	// Execute the job
 	if err := p.executor.Execute(ctx, j); err != nil {
-		// Always try to clean up
-		cleanupErr := p.executor.Cleanup(ctx)
-		if cleanupErr != nil {
-			return fmt.Errorf("job failed: %v (cleanup also failed: %v)", err, cleanupErr)
-		}
 		return fmt.Errorf("job failed: %v", err)
-	}
-
-	// Clean up after successful execution
-	if err := p.executor.Cleanup(ctx); err != nil {
-		return fmt.Errorf("cleanup failed: %v", err)
 	}
 
 	return nil

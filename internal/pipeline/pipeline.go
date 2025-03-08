@@ -43,19 +43,8 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		for _, j := range stageJobs {
 			jobErr := p.executor.Execute(ctx, j)
 
-			cleanupErr := p.executor.Cleanup(ctx)
-
 			if jobErr != nil {
-				if cleanupErr != nil {
-					return fmt.Errorf("job %s failed: %w (cleanup also failed: %v)",
-						j.GetName(), jobErr, cleanupErr)
-				}
 				return fmt.Errorf("job %s failed: %w", j.GetName(), jobErr)
-			}
-
-			// If only cleanup failed, report that
-			if cleanupErr != nil {
-				return fmt.Errorf("cleanup after job %s failed: %w", j.GetName(), cleanupErr)
 			}
 		}
 	}

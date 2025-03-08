@@ -10,9 +10,9 @@ func ValidateConfig(cfg *Config) error {
 	blocks := cfg.Jobs
 
 	if len(stages) == 0 {
-		return fmt.Errorf("[YAML] %s config file has no stages defined. "+
+		return fmt.Errorf("[YAML] %s config file has no stages defined: %v. "+
 			"Please add at least one stage."+
-			"\nExample:\n\nstages:\n  - foo <- stage name goes here\n", cfg.FileName)
+			"\nExample:\n\nstages:\n  - foo <- stage name goes here\n", cfg.FileName, cfg.Stages)
 	}
 
 	for k, v := range blocks {
