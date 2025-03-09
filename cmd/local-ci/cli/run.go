@@ -16,8 +16,8 @@ func newRunCmd() *cobra.Command {
 		Short: "Run pipeline",
 		Long:  "Run CI pipeline based on configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runner := app.NewRunner()
-			return runner.Run(configFile, job)
+			orchestrator := app.NewOrchestrator()
+			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{JobName: job})
 		},
 	}
 

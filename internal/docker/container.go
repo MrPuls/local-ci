@@ -57,3 +57,8 @@ func (c *ContainerManager) AttachLogger(ctx context.Context, containerID string,
 func (c *ContainerManager) WaitForContainer(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
 	return c.client.ContainerWait(ctx, containerID, condition)
 }
+
+func (c *ContainerManager) ListContainers(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
+	log.Printf("Listing containers...")
+	return c.client.ContainerList(ctx, options)
+}

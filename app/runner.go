@@ -6,9 +6,9 @@ import (
 	"github.com/MrPuls/local-ci/internal/docker"
 	"github.com/MrPuls/local-ci/internal/globals"
 	"github.com/MrPuls/local-ci/internal/pipeline"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"log"
-	"time"
 )
 
 // Runner is the main application entry point
@@ -18,27 +18,10 @@ func NewRunner() *Runner {
 	return &Runner{}
 }
 
-func (r *Runner) Run(configFile string, jobName string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
-	defer cancel()
+func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobName string) error {
+	stages := globals.NewStages(configFile)
+	variables := globals.NewVariables(configFile)
 
-	// 1. Load configuration
-	cfg := config.NewConfig(configFile)
-	configLoadErr := cfg.LoadConfig()
-	if configLoadErr != nil {
-		return configLoadErr
-	}
-
-	// 2. Validate configuration
-	if validatorErr := config.ValidateConfig(cfg); validatorErr != nil {
-		return validatorErr
-	}
-
-	// 3. Create globals
-	stages := globals.NewStages(cfg)
-	variables := globals.NewVariables(cfg)
-
-	// 4. Set up Docker client and executor
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
@@ -53,13 +36,59 @@ func (r *Runner) Run(configFile string, jobName string) error {
 	adapter := docker.NewConfigAdapter()
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
-	// 5. Create and run pipeline
+	var runErr error
 	if jobName != "" {
-		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, cfg)
-		return p.Run(ctx)
+		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, configFile)
+		runErr = p.Run(ctx)
 	} else {
-		p := pipeline.NewPipeline(executor, stages, variables, cfg.Jobs)
-		return p.Run(ctx)
-
+		p := pipeline.NewPipeline(executor, stages, variables, configFile.Jobs)
+		runErr = p.Run(ctx)
 	}
+
+	if runErr != nil {
+		return runErr
+	}
+	return nil
+}
+
+func (r *Runner) Cleanup(ctx context.Context) error {
+	log.Println("Starting cleanup...")
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+	defer func(dockerClient *client.Client) {
+		err := dockerClient.Close()
+		if err != nil {
+			log.Printf("Error closing docker client: %v", err)
+		}
+	}(dockerClient)
+
+	cm := docker.NewContainerManager(dockerClient, nil)
+
+	containerList, containerListError := cm.ListContainers(ctx, container.ListOptions{All: true})
+	if containerListError != nil {
+		return containerListError
+	}
+
+	log.Printf("Containers found: %d", len(containerList))
+	if len(containerList) == 0 {
+		log.Println("Nothing to cleanup ¯\\_(ツ)_/¯")
+		return nil
+	}
+
+	for _, availableContainer := range containerList {
+		log.Printf("Deleting container: %q, %v", availableContainer.ID, availableContainer.Names)
+		stpErr := cm.StopContainer(ctx, availableContainer.ID, container.StopOptions{})
+		if stpErr != nil {
+			return stpErr
+		}
+		rmErr := cm.RemoveContainer(ctx, availableContainer.ID, container.RemoveOptions{})
+		if rmErr != nil {
+			return rmErr
+		}
+	}
+	log.Println("All containers removed!")
+
+	return nil
 }

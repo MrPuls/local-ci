@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/MrPuls/local-ci/cmd/local-ci/cli"
+	"os"
 )
 
 func main() {

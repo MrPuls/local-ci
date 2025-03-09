@@ -104,7 +104,8 @@ func (e *Executor) Execute(ctx context.Context, job job.Job) error {
 	case <-statusCh:
 	}
 
-	log.Println("All done!\nStarting cleanup...")
+	log.Println("All done!")
+	log.Println("Starting cleanup...")
 	return nil
 }
 
