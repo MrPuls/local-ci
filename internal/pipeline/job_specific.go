@@ -11,30 +11,35 @@ import (
 type JobSpecificPipeline struct {
 	executor  Executor
 	config    *config.Config
-	jobName   string
+	jobNames  []string
 	variables globals.Variables
 }
 
-func NewJobSpecificPipeline(executor Executor, variables globals.Variables, jobName string, config *config.Config) *JobSpecificPipeline {
+func NewJobSpecificPipeline(executor Executor, variables globals.Variables, jobNames []string, config *config.Config) *JobSpecificPipeline {
 	return &JobSpecificPipeline{
 		executor:  executor,
 		config:    config,
-		jobName:   jobName,
+		jobNames:  jobNames,
 		variables: variables,
 	}
 }
 
 func (p *JobSpecificPipeline) Run(ctx context.Context) error {
-	if _, ok := p.config.Jobs[p.jobName]; !ok {
-		return fmt.Errorf("Job %q does not exist in file %q. ", p.jobName, p.config.FileName)
+	var jobs []job.Job
+	for _, j := range p.jobNames {
+		if _, ok := p.config.Jobs[j]; !ok {
+			return fmt.Errorf("Job %q does not exist in file %q. ", j, p.config.FileName)
+		}
+		// Create the job from config
+		newJob := job.NewJobConfig(j, p.config.Jobs[j], p.variables)
+		jobs = append(jobs, newJob)
 	}
-	// Create the job from config
-	j := job.NewJobConfig(p.jobName, p.config.Jobs[p.jobName], p.variables)
 
-	// Execute the job
-	if err := p.executor.Execute(ctx, j); err != nil {
-		return fmt.Errorf("job failed: %v", err)
+	// Execute the jobs
+	for _, j := range jobs {
+		if err := p.executor.Execute(ctx, j); err != nil {
+			return fmt.Errorf("job failed: %v", err)
+		}
 	}
-
 	return nil
 }

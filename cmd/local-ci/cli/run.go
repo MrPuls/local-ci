@@ -7,7 +7,7 @@ import (
 
 var (
 	configFile string
-	job        string
+	jobs       []string
 )
 
 func newRunCmd() *cobra.Command {
@@ -17,13 +17,13 @@ func newRunCmd() *cobra.Command {
 		Long:  "Run CI pipeline based on configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orchestrator := app.NewOrchestrator()
-			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{JobName: job})
+			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{JobNames: jobs})
 		},
 	}
 
 	// Add flags
 	cmd.Flags().StringVarP(&configFile, "config", "c", ".local-ci.yaml", "Path to configuration file")
-	cmd.Flags().StringVarP(&job, "job", "j", "", "Run a specific job from a config file")
+	cmd.Flags().StringSliceVarP(&jobs, "job", "j", []string{}, "Run a specific job from a config file")
 
 	return cmd
 }

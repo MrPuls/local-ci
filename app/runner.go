@@ -18,7 +18,7 @@ func NewRunner() *Runner {
 	return &Runner{}
 }
 
-func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobName string) error {
+func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobNames []string) error {
 	stages := globals.NewStages(configFile)
 	variables := globals.NewVariables(configFile)
 
@@ -37,8 +37,8 @@ func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobName str
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	var runErr error
-	if jobName != "" {
-		p := pipeline.NewJobSpecificPipeline(executor, variables, jobName, configFile)
+	if len(jobNames) != 0 {
+		p := pipeline.NewJobSpecificPipeline(executor, variables, jobNames, configFile)
 		runErr = p.Run(ctx)
 	} else {
 		p := pipeline.NewPipeline(executor, stages, variables, configFile.Jobs)
