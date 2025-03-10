@@ -13,6 +13,7 @@
    - [File System Handling](#file-system-handling)
    - [Caching System](#caching-system)
    - [Job-Specific Execution](#job-specific-execution)
+   - [Graceful Shutdown](#graceful-shutdown)
 - [Limitations and Notes](#limitations-and-notes)
 
 ## Command Line Interface
@@ -218,6 +219,77 @@ local-ci run --job Test
 ```
 
 This will execute only the Test job, skipping the Build and Deploy stages.
+
+### Graceful Shutdown
+
+Local CI implements graceful shutdown handling that ensures resources are properly cleaned up when execution is interrupted. This is particularly useful when:
+
+- User presses Ctrl+C to stop execution
+- The terminal process is killed
+- The system is shutting down
+
+#### Implementation Details
+
+The graceful shutdown system:
+
+1. **Catches Interruption Signals**:
+    - Listens for SIGINT (Ctrl+C) and SIGTERM signals
+    - Provides a user-friendly message about the shutdown process
+
+2. **Cancels Running Operations**:
+    - Uses context cancellation to signal all operations to stop
+    - Propagates cancellation to Docker operations
+    - Ensures in-progress tasks can exit cleanly
+
+3. **Resource Cleanup**:
+    - Stops all running containers
+    - Removes containers to prevent resource leaks
+    - Closes connections and releases resources
+    - Sets a timeout to prevent hanging during cleanup
+
+#### How It Works
+
+When you press Ctrl+C during execution:
+
+1. The signal is caught by the orchestration layer
+2. A message is displayed indicating that graceful shutdown has begun
+3. Running operations are cancelled via context
+4. The cleanup process stops and removes all containers
+5. The program exits with a clean state
+
+Example output:
+```
+Starting job: Build
+Pulling image: golang:1.21
+^C
+Operation interrupted, initiating graceful shutdown...
+Stopping runner...
+Starting cleanup...
+Containers found: 1
+Deleting container: "abc123def456", ["/local-ci-build"]
+All containers removed!
+```
+
+#### Technical Architecture
+
+The graceful shutdown feature is implemented through:
+
+1. **Orchestration Layer**:
+    - Manages signal handling and high-level workflow
+    - Coordinates between execution and cleanup
+    - Ensures cleanup has sufficient time to complete
+
+2. **Runner Cleanup**:
+    - Identifies all containers created by Local CI
+    - Executes Docker stop and remove operations
+    - Logs cleanup progress for visibility
+
+3. **Context Propagation**:
+    - All operations receive a cancellable context
+    - Operations check for cancellation and exit cleanly
+    - Prevents resource leaks and hanging processes
+
+This architecture ensures that Local CI behaves well even when interrupted, leaving your system in a clean state without orphaned containers or resources.
 
 ## Limitations and Notes
 
