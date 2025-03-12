@@ -54,6 +54,10 @@ local-ci run --config my-pipeline.yaml
 
 # Run a specific job only
 local-ci run --job JobName
+
+# Or to run multiple jobs
+
+local-ci run --job jobName1,JobName2
 ```
 
 ## Quick Start
