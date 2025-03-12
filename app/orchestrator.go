@@ -17,7 +17,7 @@ func NewOrchestrator() *Orchestrator {
 }
 
 type OrchestratorOptions struct {
-	JobName string
+	JobNames []string
 }
 
 var (
@@ -44,7 +44,7 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	runChan := make(chan error, 1)
 
 	go func() {
-		runChan <- runner.Run(ctx, cfg, options.JobName)
+		runChan <- runner.Run(ctx, cfg, options.JobNames)
 	}()
 
 	select {

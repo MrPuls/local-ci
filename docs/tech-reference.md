@@ -158,6 +158,11 @@ Local CI allows running individual jobs instead of the full pipeline:
 ```bash
 local-ci run --job JobName
 ```
+Or
+```bash
+local-ci run --job JobName1,JobName2
+```
+To run several jobs
 
 #### How It Works
 
