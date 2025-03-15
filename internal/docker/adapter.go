@@ -9,6 +9,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type ConfigAdapter interface {
@@ -28,6 +29,11 @@ func (a *configAdapter) ToContainerConfig(job job.Job) *container.Config {
 		WorkingDir: job.GetWorkdir(),
 		Cmd:        []string{"/bin/sh", "-c", a.buildCmd(job.GetScripts())},
 		Env:        a.transformEnvVars(job.GetVariables()),
+		Labels: map[string]string{
+			"created_by":            "local-ci",
+			"local-ci.job-name":     strings.ToLower(job.GetName()),
+			"local-ci.created-time": time.Now().Format(time.RFC3339),
+		},
 	}
 }
 
