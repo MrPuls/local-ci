@@ -7,6 +7,7 @@ import (
 	"github.com/MrPuls/local-ci/internal/globals"
 	"github.com/MrPuls/local-ci/internal/pipeline"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"log"
 )
@@ -66,7 +67,12 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 
 	cm := docker.NewContainerManager(dockerClient, nil)
 
-	containerList, containerListError := cm.ListContainers(ctx, container.ListOptions{All: true})
+	containerList, containerListError := cm.ListContainers(
+		ctx, container.ListOptions{
+			All:     true,
+			Filters: filters.NewArgs(filters.Arg("label", "created_by=local-ci")),
+		},
+	)
 	if containerListError != nil {
 		return containerListError
 	}
@@ -78,7 +84,7 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 	}
 
 	for _, availableContainer := range containerList {
-		log.Printf("Deleting container: %q, %v", availableContainer.ID, availableContainer.Names)
+		log.Printf("Deleting container: %q, %v", availableContainer.ID, availableContainer.Names[0])
 		stpErr := cm.StopContainer(ctx, availableContainer.ID, container.StopOptions{})
 		if stpErr != nil {
 			return stpErr
