@@ -8,6 +8,7 @@ import (
 var (
 	configFile string
 	jobs       []string
+	stages     []string
 )
 
 func newRunCmd() *cobra.Command {
@@ -17,7 +18,10 @@ func newRunCmd() *cobra.Command {
 		Long:  "Run CI pipeline based on configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orchestrator := app.NewOrchestrator()
-			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{JobNames: jobs})
+			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{
+				JobNames: jobs,
+				Stages:   stages,
+			})
 		},
 	}
 

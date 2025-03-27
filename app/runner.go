@@ -15,11 +15,16 @@ import (
 // Runner is the main application entry point
 type Runner struct{}
 
+type RunnerOptions struct {
+	jobNames []string
+	stages   []string
+}
+
 func NewRunner() *Runner {
 	return &Runner{}
 }
 
-func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobNames []string) error {
+func (r *Runner) Run(ctx context.Context, configFile *config.Config, options RunnerOptions) error {
 	stages := globals.NewStages(configFile)
 	variables := globals.NewVariables(configFile)
 
@@ -37,9 +42,14 @@ func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobNames []
 	adapter := docker.NewConfigAdapter()
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
+	// TODO:
+	//  if jobs - run specific job name,
+	// 	if stages = run specific stages,
+	//  if both - run specific jobs from specific stages
+
 	var runErr error
-	if len(jobNames) != 0 {
-		p := pipeline.NewJobSpecificPipeline(executor, variables, jobNames, configFile)
+	if len(options.jobNames) != 0 {
+		p := pipeline.NewJobSpecificPipeline(executor, variables, options.jobNames, configFile)
 		runErr = p.Run(ctx)
 	} else {
 		p := pipeline.NewPipeline(executor, stages, variables, configFile.Jobs)

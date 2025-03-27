@@ -18,6 +18,7 @@ func NewOrchestrator() *Orchestrator {
 
 type OrchestratorOptions struct {
 	JobNames []string
+	Stages   []string
 }
 
 var (
