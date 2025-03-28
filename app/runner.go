@@ -51,6 +51,12 @@ func (r *Runner) Run(ctx context.Context, configFile *config.Config, options Run
 	if len(options.jobNames) != 0 {
 		p := pipeline.NewJobSpecificPipeline(executor, variables, options.jobNames, configFile)
 		runErr = p.Run(ctx)
+	} else if len(options.stages) != 0 {
+		p := pipeline.NewStageSpecificPipeline(executor, variables, options.stages, configFile)
+		runErr = p.Run(ctx)
+	} else if len(options.jobNames) != 0 && len(options.stages) != 0 {
+		p := pipeline.NewJobStageSpecificPipeline(executor, variables, options.stages, configFile)
+		runErr = p.Run(ctx)
 	} else {
 		p := pipeline.NewPipeline(executor, stages, variables, configFile.Jobs)
 		runErr = p.Run(ctx)
