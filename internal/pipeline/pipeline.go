@@ -31,6 +31,7 @@ func NewPipeline(executor Executor, stages globals.Stages, variables globals.Var
 
 func (p *Pipeline) Run(ctx context.Context) error {
 	// Execute jobs by stage
+	// TODO: Not by stage, just run the jobs provided
 	for _, stage := range p.stages {
 		// Find all jobs in this stage
 		var stageJobs []job.Job

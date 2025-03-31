@@ -11,9 +11,9 @@ type Job struct {
 	variables globals.Variables
 }
 
-func NewJobConfig(name string, cfg config.JobConfig, globalVariables globals.Variables) Job {
+func NewJobConfig(jobName string, cfg config.JobConfig, globalVariables globals.Variables) Job {
 	return Job{
-		name:      name,
+		name:      jobName,
 		config:    cfg,
 		variables: globalVariables,
 	}

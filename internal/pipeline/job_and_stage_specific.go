@@ -10,15 +10,15 @@ import (
 	"slices"
 )
 
-type StageSpecificPipeline struct {
+type JobAndStageSpecificPipeline struct {
 	executor   Executor
 	config     *config.Config
 	stageNames []string
 	variables  globals.Variables
 }
 
-func NewStageSpecificPipeline(executor Executor, variables globals.Variables, stageNames []string, config *config.Config) *StageSpecificPipeline {
-	return &StageSpecificPipeline{
+func NewJobAndStageSpecificPipeline(executor Executor, variables globals.Variables, stageNames []string, config *config.Config) *JobAndStageSpecificPipeline {
+	return &JobAndStageSpecificPipeline{
 		executor:   executor,
 		config:     config,
 		stageNames: stageNames,
@@ -26,7 +26,7 @@ func NewStageSpecificPipeline(executor Executor, variables globals.Variables, st
 	}
 }
 
-func (p *StageSpecificPipeline) Run(ctx context.Context) error {
+func (p *JobAndStageSpecificPipeline) Run(ctx context.Context) error {
 	var jobs []job.Job
 	for k, v := range p.config.Jobs {
 		if slices.Contains(p.stageNames, v.Stage) {

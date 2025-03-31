@@ -47,20 +47,14 @@ func (r *Runner) Run(ctx context.Context, configFile *config.Config, options Run
 	// 	if stages = run specific stages,
 	//  if both - run specific jobs from specific stages
 
+	// TODO: This ^ looks overly complicated since it basically does the same thing: iterates through jobs with
+	//  different filter anb appends them to slice and then runs those jobs. So perhaps the abstraction in needed.
+	//  Getting the runner options and filtering jobs
+
 	var runErr error
-	if len(options.jobNames) != 0 {
-		p := pipeline.NewJobSpecificPipeline(executor, variables, options.jobNames, configFile)
-		runErr = p.Run(ctx)
-	} else if len(options.stages) != 0 {
-		p := pipeline.NewStageSpecificPipeline(executor, variables, options.stages, configFile)
-		runErr = p.Run(ctx)
-	} else if len(options.jobNames) != 0 && len(options.stages) != 0 {
-		p := pipeline.NewJobStageSpecificPipeline(executor, variables, options.stages, configFile)
-		runErr = p.Run(ctx)
-	} else {
-		p := pipeline.NewPipeline(executor, stages, variables, configFile.Jobs)
-		runErr = p.Run(ctx)
-	}
+	jobs := prepareJobs(options)
+	p := pipeline.NewPipeline(executor, stages, variables, jobs)
+	runErr = p.Run(ctx)
 
 	if runErr != nil {
 		return runErr
