@@ -28,8 +28,9 @@ type RunnerOptions struct {
 
 func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
 	return &Runner{
-		ctx: ctx,
-		cfg: cfg,
+		ctx:  ctx,
+		cfg:  cfg,
+		jobs: make(map[string]config.JobConfig),
 	}
 }
 
@@ -111,9 +112,8 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runner) PrepareJobs(options RunnerOptions) error {
-	var jobs map[string]config.JobConfig
-
+func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
+	log.Println("Starting prepare jobs...")
 	for _, s := range options.stages {
 		if !slices.Contains(r.cfg.Stages, s) {
 			return fmt.Errorf("invalid stage %q, not present in config file: %q", s, r.cfg.FileName)
@@ -123,26 +123,27 @@ func (r *Runner) PrepareJobs(options RunnerOptions) error {
 	if len(options.jobNames) != 0 {
 		for _, j := range options.jobNames {
 			if _, ok := r.cfg.Jobs[j]; ok {
-				jobs[j] = r.cfg.Jobs[j]
+				r.jobs[j] = r.cfg.Jobs[j]
 			}
 		}
+		return nil
 	}
 
 	if len(options.stages) != 0 {
 		for k, v := range r.cfg.Jobs {
-			if slices.Contains(options.stages, k) {
-				jobs[k] = v
+			if slices.Contains(options.stages, v.Stage) {
+				r.jobs[k] = v
 			}
 		}
+		return nil
 	}
 
 	for _, s := range r.cfg.Stages {
 		for k, v := range r.cfg.Jobs {
 			if v.Stage == s {
-				jobs[k] = v
+				r.jobs[k] = v
 			}
 		}
 	}
-	r.jobs = jobs
 	return nil
 }

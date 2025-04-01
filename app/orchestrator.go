@@ -38,7 +38,7 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 		return validatorErr
 	}
 	runner := NewRunner(ctx, cfg)
-	prepErr := runner.PrepareJobs(
+	prepErr := runner.PrepareJobConfigs(
 		RunnerOptions{
 			jobNames: options.JobNames,
 			stages:   options.Stages},
