@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/docker"
 	"github.com/MrPuls/local-ci/internal/globals"
@@ -10,23 +11,34 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"log"
+	"slices"
 )
 
 // Runner is the main application entry point
-type Runner struct{}
+type Runner struct {
+	ctx  context.Context
+	cfg  *config.Config
+	jobs map[string]config.JobConfig
+}
 
 type RunnerOptions struct {
 	jobNames []string
 	stages   []string
 }
 
-func NewRunner() *Runner {
-	return &Runner{}
+func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
+	return &Runner{
+		ctx: ctx,
+		cfg: cfg,
+	}
 }
 
-func (r *Runner) Run(ctx context.Context, configFile *config.Config, options RunnerOptions) error {
-	stages := globals.NewStages(configFile)
-	variables := globals.NewVariables(configFile)
+func (r *Runner) Run() error {
+	stages := globals.NewStages(r.cfg)
+	variables := globals.NewVariables(r.cfg)
+	if len(r.jobs) == 0 {
+		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
+	}
 
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -42,19 +54,9 @@ func (r *Runner) Run(ctx context.Context, configFile *config.Config, options Run
 	adapter := docker.NewConfigAdapter()
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
-	// TODO:
-	//  if jobs - run specific job name,
-	// 	if stages = run specific stages,
-	//  if both - run specific jobs from specific stages
-
-	// TODO: This ^ looks overly complicated since it basically does the same thing: iterates through jobs with
-	//  different filter anb appends them to slice and then runs those jobs. So perhaps the abstraction in needed.
-	//  Getting the runner options and filtering jobs
-
 	var runErr error
-	jobs := prepareJobs(options)
-	p := pipeline.NewPipeline(executor, stages, variables, jobs)
-	runErr = p.Run(ctx)
+	p := pipeline.NewPipeline(executor, stages, variables, r.jobs)
+	runErr = p.Run(r.ctx)
 
 	if runErr != nil {
 		return runErr
@@ -106,5 +108,41 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 	}
 	log.Println("All containers removed!")
 
+	return nil
+}
+
+func (r *Runner) PrepareJobs(options RunnerOptions) error {
+	var jobs map[string]config.JobConfig
+
+	for _, s := range options.stages {
+		if !slices.Contains(r.cfg.Stages, s) {
+			return fmt.Errorf("invalid stage %q, not present in config file: %q", s, r.cfg.FileName)
+		}
+	}
+
+	if len(options.jobNames) != 0 {
+		for _, j := range options.jobNames {
+			if _, ok := r.cfg.Jobs[j]; ok {
+				jobs[j] = r.cfg.Jobs[j]
+			}
+		}
+	}
+
+	if len(options.stages) != 0 {
+		for k, v := range r.cfg.Jobs {
+			if slices.Contains(options.stages, k) {
+				jobs[k] = v
+			}
+		}
+	}
+
+	for _, s := range r.cfg.Stages {
+		for k, v := range r.cfg.Jobs {
+			if v.Stage == s {
+				jobs[k] = v
+			}
+		}
+	}
+	r.jobs = jobs
 	return nil
 }

@@ -26,7 +26,6 @@ var (
 )
 
 func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOptions) error {
-	runner := NewRunner()
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
 
@@ -38,6 +37,16 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	if validatorErr := config.ValidateConfig(cfg); validatorErr != nil {
 		return validatorErr
 	}
+	runner := NewRunner(ctx, cfg)
+	prepErr := runner.PrepareJobs(
+		RunnerOptions{
+			jobNames: options.JobNames,
+			stages:   options.Stages},
+	)
+
+	if prepErr != nil {
+		return prepErr
+	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -45,7 +54,7 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	runChan := make(chan error, 1)
 
 	go func() {
-		runChan <- runner.Run(ctx, cfg, options.JobNames)
+		runChan <- runner.Run()
 	}()
 
 	select {
