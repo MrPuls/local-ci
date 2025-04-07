@@ -52,12 +52,19 @@ local-ci run
 # Run with a specific config file using --config/-c flag
 local-ci run --config my-pipeline.yaml
 
-# Run a specific job only
+# Run a specific job using --job/-j
 local-ci run --job JobName
 
 # Or to run multiple jobs
 
 local-ci run --job jobName1,JobName2
+
+# Run jobs from a specific stage using --stage/-s
+
+local-ci run --stage stageName
+
+# Or use multiple stages
+local-ci run --stage stageName1,stageName2
 ```
 
 ## Quick Start

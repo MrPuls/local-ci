@@ -13,6 +13,7 @@
    - [File System Handling](#file-system-handling)
    - [Caching System](#caching-system)
    - [Job-Specific Execution](#job-specific-execution)
+   - [Stage-Specific Execution](#stage-specific-execution)
    - [Graceful Shutdown](#graceful-shutdown)
 - [Limitations and Notes](#limitations-and-notes)
 
@@ -179,6 +180,30 @@ When running a specific job:
 3. **Standard Error Handling**:
    - Error handling and cleanup remain consistent with pipeline execution
 
+### Stage-Specific Execution
+
+Local CI allows running individual jobs instead of the full pipeline:
+
+```bash
+local-ci run --stage StageName
+```
+Or
+```bash
+local-ci run --stage StageName1,StageName2
+```
+To run jobs marked with specified stages
+
+#### How It Works
+
+When running jobs by a specific stage:
+
+1. **Direct Execution**:
+    - The jobs are extracted directly from the configuration
+    - All jobs features (caching, environment variables, etc.) work normally
+
+2. **Standard Error Handling**:
+    - Error handling and cleanup remain consistent with pipeline execution
+
 #### Use Cases
 
 Running specific jobs is useful for:
@@ -307,3 +332,4 @@ This architecture ensures that Local CI behaves well even when interrupted, leav
 2. **Future Enhancements**:
    - Parallel job execution within stages
    - Persistent services support
+   - Access to custom registries
