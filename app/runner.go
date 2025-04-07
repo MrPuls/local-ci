@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/docker"
 	"github.com/MrPuls/local-ci/internal/globals"
@@ -10,18 +11,35 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"log"
+	"slices"
 )
 
 // Runner is the main application entry point
-type Runner struct{}
-
-func NewRunner() *Runner {
-	return &Runner{}
+type Runner struct {
+	ctx  context.Context
+	cfg  *config.Config
+	jobs map[string]config.JobConfig
 }
 
-func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobNames []string) error {
-	stages := globals.NewStages(configFile)
-	variables := globals.NewVariables(configFile)
+type RunnerOptions struct {
+	jobNames []string
+	stages   []string
+}
+
+func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
+	return &Runner{
+		ctx:  ctx,
+		cfg:  cfg,
+		jobs: make(map[string]config.JobConfig),
+	}
+}
+
+func (r *Runner) Run() error {
+	stages := globals.NewStages(r.cfg)
+	variables := globals.NewVariables(r.cfg)
+	if len(r.jobs) == 0 {
+		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
+	}
 
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -38,13 +56,8 @@ func (r *Runner) Run(ctx context.Context, configFile *config.Config, jobNames []
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	var runErr error
-	if len(jobNames) != 0 {
-		p := pipeline.NewJobSpecificPipeline(executor, variables, jobNames, configFile)
-		runErr = p.Run(ctx)
-	} else {
-		p := pipeline.NewPipeline(executor, stages, variables, configFile.Jobs)
-		runErr = p.Run(ctx)
-	}
+	p := pipeline.NewPipeline(executor, stages, variables, r.jobs)
+	runErr = p.Run(r.ctx)
 
 	if runErr != nil {
 		return runErr
@@ -96,5 +109,41 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 	}
 	log.Println("All containers removed!")
 
+	return nil
+}
+
+func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
+	log.Println("Starting prepare jobs...")
+	for _, s := range options.stages {
+		if !slices.Contains(r.cfg.Stages, s) {
+			return fmt.Errorf("invalid stage %q, not present in config file: %q", s, r.cfg.FileName)
+		}
+	}
+
+	if len(options.jobNames) != 0 {
+		for _, j := range options.jobNames {
+			if _, ok := r.cfg.Jobs[j]; ok {
+				r.jobs[j] = r.cfg.Jobs[j]
+			}
+		}
+		return nil
+	}
+
+	if len(options.stages) != 0 {
+		for k, v := range r.cfg.Jobs {
+			if slices.Contains(options.stages, v.Stage) {
+				r.jobs[k] = v
+			}
+		}
+		return nil
+	}
+
+	for _, s := range r.cfg.Stages {
+		for k, v := range r.cfg.Jobs {
+			if v.Stage == s {
+				r.jobs[k] = v
+			}
+		}
+	}
 	return nil
 }
