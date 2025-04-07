@@ -140,6 +140,7 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 
 	for _, s := range r.cfg.Stages {
 		for k, v := range r.cfg.Jobs {
+			log.Printf("Preparing stage %q, job %q", s, k)
 			if v.Stage == s {
 				r.jobs[k] = v
 			}
