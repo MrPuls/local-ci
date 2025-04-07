@@ -120,6 +120,8 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 		}
 	}
 
+	// TODO: This feels bad man...
+
 	if len(options.jobNames) != 0 {
 		for _, j := range options.jobNames {
 			if _, ok := r.cfg.Jobs[j]; ok {
