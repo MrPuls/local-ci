@@ -2,6 +2,8 @@ package globals
 
 import "github.com/MrPuls/local-ci/internal/config"
 
+//TODO: Needs refactoring
+
 // Stages defines the interface for accessing pipeline stages
 type Stages interface {
 	GetStages() []string

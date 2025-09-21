@@ -2,12 +2,13 @@ package docker
 
 import (
 	"context"
+	"io"
+	"log"
+
 	"github.com/MrPuls/local-ci/internal/job"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"io"
-	"log"
 )
 
 type ContainerManager struct {

@@ -3,14 +3,15 @@ package docker
 import (
 	"bytes"
 	"context"
+	"io"
+	"log"
+	"os"
+
 	"github.com/MrPuls/local-ci/internal/archive"
 	"github.com/MrPuls/local-ci/internal/job"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-	"io"
-	"log"
-	"os"
 )
 
 type Executor struct {

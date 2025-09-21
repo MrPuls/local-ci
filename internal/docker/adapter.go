@@ -2,14 +2,15 @@ package docker
 
 import (
 	"fmt"
-	"github.com/MrPuls/local-ci/internal/config"
-	"github.com/MrPuls/local-ci/internal/job"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
 	"log"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/MrPuls/local-ci/internal/config"
+	"github.com/MrPuls/local-ci/internal/job"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 )
 
 type ConfigAdapter interface {
@@ -71,17 +72,14 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string, job
 	var mounts []mount.Mount
 	for _, dest := range cache.Paths {
 		target := workdir
-		// Ensure we have an absolute path
 		if !strings.HasSuffix(target, "/") && !strings.HasPrefix(dest, "/") {
 			target += "/"
 		}
 		target += dest
 
-		// Ensure the final path is absolute
 		if !filepath.IsAbs(target) {
 			target = "/" + target
 		}
-		// Create a safe volume name
 		safePath := strings.ReplaceAll(target, "/", "-")
 		sourceName := fmt.Sprintf("%s-%s%s", jobName, cache.Key, safePath)
 

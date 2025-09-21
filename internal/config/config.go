@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"os"
+
+	"go.yaml.in/yaml/v4"
 )
 
 type NetworkConfig struct {
@@ -17,6 +18,7 @@ type CacheConfig struct {
 }
 
 type JobConfig struct {
+	Name      string            `yaml:"-"`
 	Image     string            `yaml:"image"`
 	Script    []string          `yaml:"script"`
 	Stage     string            `yaml:"stage"`
@@ -28,15 +30,64 @@ type JobConfig struct {
 
 type Config struct {
 	FileName        string
-	Stages          []string             `yaml:"stages"`
-	Jobs            map[string]JobConfig `yaml:",inline"`
-	GlobalVariables map[string]string    `yaml:"variables,omitempty"`
+	Stages          []string          `yaml:"stages"`
+	Jobs            []JobConfig       `yaml:"-"`
+	GlobalVariables map[string]string `yaml:"variables,omitempty"`
 }
 
 func NewConfig(file string) *Config {
 	return &Config{
 		FileName: file,
 	}
+}
+
+func (c *Config) UnmarshalYAML(node *yaml.Node) error {
+	type Alias Config
+	alias := (*Alias)(c) // to avoid recursion
+
+	var raw map[string]interface{}
+	if err := node.Decode(&raw); err != nil {
+		return err
+	}
+
+	if stages, ok := raw["stages"].([]interface{}); ok {
+		for _, stage := range stages {
+			alias.Stages = append(alias.Stages, stage.(string))
+		}
+	}
+
+	if variables, ok := raw["variables"].(map[string]interface{}); ok {
+		alias.GlobalVariables = make(map[string]string)
+		for k, v := range variables {
+			alias.GlobalVariables[k] = v.(string)
+		}
+	}
+
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i < len(node.Content); i += 2 {
+			keyNode := node.Content[i]
+			valueNode := node.Content[i+1]
+
+			var key string
+			if err := keyNode.Decode(&key); err != nil {
+				continue
+			}
+
+			if key == "stages" || key == "variables" {
+				continue
+			}
+
+			var job JobConfig
+			if err := valueNode.Decode(&job); err != nil {
+				return fmt.Errorf("failed to decode job %s: %w", key, err)
+			}
+
+			job.Name = key
+			alias.Jobs = append(alias.Jobs, job)
+		}
+	}
+
+	return nil
 }
 
 func (c *Config) LoadConfig() error {
