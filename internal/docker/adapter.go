@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/config"
-	"github.com/MrPuls/local-ci/internal/job"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 )
 
 type ConfigAdapter interface {
-	ToContainerConfig(job job.Job) *container.Config
-	ToHostConfig(job job.Job) *container.HostConfig
+	ToContainerConfig(job config.JobConfig) *container.Config
+	ToHostConfig(job config.JobConfig) *container.HostConfig
 }
 
 type configAdapter struct{}
@@ -24,25 +23,25 @@ func NewConfigAdapter() ConfigAdapter {
 	return &configAdapter{}
 }
 
-func (a *configAdapter) ToContainerConfig(job job.Job) *container.Config {
+func (a *configAdapter) ToContainerConfig(job config.JobConfig) *container.Config {
 	return &container.Config{
-		Image:      job.GetImage(),
-		WorkingDir: job.GetWorkdir(),
-		Cmd:        []string{"/bin/sh", "-c", a.buildCmd(job.GetScripts())},
-		Env:        a.transformEnvVars(job.GetVariables()),
+		Image:      job.Image,
+		WorkingDir: job.Workdir,
+		Cmd:        []string{"/bin/sh", "-c", a.buildCmd(job.Script)},
+		Env:        a.transformEnvVars(job.Variables),
 		Labels: map[string]string{
 			"created_by":            "local-ci",
-			"local-ci.job-name":     strings.ToLower(job.GetName()),
+			"local-ci.job-name":     strings.ToLower(job.Name),
 			"local-ci.created-time": time.Now().Format(time.RFC3339),
 		},
 	}
 }
 
-func (a *configAdapter) ToHostConfig(job job.Job) *container.HostConfig {
+func (a *configAdapter) ToHostConfig(job config.JobConfig) *container.HostConfig {
 	return &container.HostConfig{
-		Mounts:      a.getMounts(job.GetCache(), job.GetWorkdir(), job.GetName()),
-		NetworkMode: a.getNetworkMode(job.GetNetwork()),
-		ExtraHosts:  a.getExtraHosts(job.GetNetwork()),
+		Mounts:      a.getMounts(job.Cache, job.Workdir, job.Name),
+		NetworkMode: a.getNetworkMode(job.Network),
+		ExtraHosts:  a.getExtraHosts(job.Network),
 	}
 }
 

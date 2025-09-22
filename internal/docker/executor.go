@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/MrPuls/local-ci/internal/archive"
-	"github.com/MrPuls/local-ci/internal/job"
+	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -27,7 +27,7 @@ func NewDockerExecutor(client *client.Client, adapter ConfigAdapter) *Executor {
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, job job.Job) error {
+func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 	cm := NewContainerManager(e.client, e.adapter)
 	im := NewImageManager(e.client)
 	log.Println("Parsing working directory...")
@@ -37,7 +37,7 @@ func (e *Executor) Execute(ctx context.Context, job job.Job) error {
 	}
 
 	// options could be switched to adapter type if needed more customization
-	reader, pullErr := im.PullImage(ctx, job.GetImage(), image.PullOptions{})
+	reader, pullErr := im.PullImage(ctx, job.Image, image.PullOptions{})
 	if pullErr != nil {
 		return pullErr
 	}
@@ -73,7 +73,7 @@ func (e *Executor) Execute(ctx context.Context, job job.Job) error {
 
 	log.Println("Trying to copy files to container...")
 	// options could be switched to adapter type if needed more customization
-	copyErr := cm.CopyToContainer(ctx, e.containerID, job.GetWorkdir(), &b, container.CopyToContainerOptions{})
+	copyErr := cm.CopyToContainer(ctx, e.containerID, job.Workdir, &b, container.CopyToContainerOptions{})
 	if copyErr != nil {
 		return copyErr
 	}

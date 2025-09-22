@@ -2,10 +2,11 @@ package docker
 
 import (
 	"context"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
 	"io"
 	"log"
+
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 )
 
 type ImageManager struct {

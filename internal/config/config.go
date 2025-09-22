@@ -64,7 +64,7 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	if node.Kind == yaml.MappingNode {
-		for i := 0; i < len(node.Content); i += 2 {
+		for i := 0; i < len(node.Content); i += 2 { // to iterate over keys only
 			keyNode := node.Content[i]
 			valueNode := node.Content[i+1]
 
@@ -83,6 +83,17 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 			}
 
 			job.Name = key
+
+			// local variables take precedence
+			for k, v := range alias.GlobalVariables {
+				if _, ok := job.Variables[k]; !ok {
+					job.Variables[k] = v
+				}
+			}
+			// Workdir default value setup
+			if job.Workdir == "" {
+				job.Workdir = "/"
+			}
 			alias.Jobs = append(alias.Jobs, job)
 		}
 	}
