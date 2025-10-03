@@ -3,22 +3,22 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
+	"slices"
+
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/docker"
-	"github.com/MrPuls/local-ci/internal/globals"
 	"github.com/MrPuls/local-ci/internal/pipeline"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"log"
-	"slices"
 )
 
 // Runner is the main application entry point
 type Runner struct {
 	ctx  context.Context
 	cfg  *config.Config
-	jobs map[string]config.JobConfig
+	jobs []config.JobConfig
 }
 
 type RunnerOptions struct {
@@ -30,13 +30,12 @@ func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
 	return &Runner{
 		ctx:  ctx,
 		cfg:  cfg,
-		jobs: make(map[string]config.JobConfig),
+		jobs: make([]config.JobConfig, 0),
 	}
 }
 
 func (r *Runner) Run() error {
-	stages := globals.NewStages(r.cfg)
-	variables := globals.NewVariables(r.cfg)
+	stages := r.cfg.Stages
 	if len(r.jobs) == 0 {
 		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
 	}
@@ -56,7 +55,7 @@ func (r *Runner) Run() error {
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	var runErr error
-	p := pipeline.NewPipeline(executor, stages, variables, r.jobs)
+	p := pipeline.NewPipeline(executor, stages)
 	runErr = p.Run(r.ctx)
 
 	if runErr != nil {
@@ -121,9 +120,9 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	}
 
 	if len(options.jobNames) != 0 {
-		for _, j := range options.jobNames {
-			if _, ok := r.cfg.Jobs[j]; ok {
-				r.jobs[j] = r.cfg.Jobs[j]
+		for _, job := range r.cfg.Jobs {
+			if slices.Contains(options.jobNames, job.Name) {
+				r.jobs = append(r.jobs, job)
 			}
 		}
 		return nil

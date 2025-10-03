@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/docker/docker v28.4.0+incompatible
 	github.com/spf13/cobra v1.10.1
-	gopkg.in/yaml.v3 v3.0.1
+	go.yaml.in/yaml/v4 v4.0.0-rc.2
 )
 
 require (

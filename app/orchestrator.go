@@ -2,12 +2,13 @@ package app
 
 import (
 	"context"
-	"github.com/MrPuls/local-ci/internal/config"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/MrPuls/local-ci/internal/config"
 )
 
 type Orchestrator struct{}
@@ -34,8 +35,6 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 		return configLoadErr
 	}
 	log.Printf("Config file loaded from %s", configFile)
-
-	// TODO: Config comes with the correct job ordering, which breaks somewhere along the line
 
 	if validatorErr := config.ValidateConfig(cfg); validatorErr != nil {
 		return validatorErr

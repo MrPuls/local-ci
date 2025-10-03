@@ -2,12 +2,13 @@ package docker
 
 import (
 	"context"
-	"github.com/MrPuls/local-ci/internal/job"
+	"io"
+	"log"
+
+	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"io"
-	"log"
 )
 
 type ContainerManager struct {
@@ -22,12 +23,12 @@ func NewContainerManager(cli *client.Client, adapter ConfigAdapter) *ContainerMa
 	}
 }
 
-func (c *ContainerManager) CreateContainer(ctx context.Context, job job.Job) (container.CreateResponse, error) {
+func (c *ContainerManager) CreateContainer(ctx context.Context, job config.JobConfig) (container.CreateResponse, error) {
 	log.Println("Creating necessary configs...")
 	containerCfg := c.adapter.ToContainerConfig(job)
 	hostCfg := c.adapter.ToHostConfig(job)
 	log.Print("Creating container...")
-	return c.client.ContainerCreate(ctx, containerCfg, hostCfg, nil, nil, job.GetName())
+	return c.client.ContainerCreate(ctx, containerCfg, hostCfg, nil, nil, job.Name)
 }
 
 func (c *ContainerManager) StartContainer(ctx context.Context, containerID string, options container.StartOptions) error {
