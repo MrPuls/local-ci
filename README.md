@@ -14,6 +14,8 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Real-time log streaming from containers
 - Automatic container cleanup
 - Stage-based pipeline execution
+- Job-based pipeline execution
+- GitLab utils
 
 ## Installation
 

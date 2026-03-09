@@ -55,7 +55,7 @@ func (r *Runner) Run() error {
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	var runErr error
-	p := pipeline.NewPipeline(executor, stages)
+	p := pipeline.NewPipeline(executor, stages, r.jobs)
 	runErr = p.Run(r.ctx)
 
 	if runErr != nil {
@@ -113,11 +113,6 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 
 func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	log.Println("Preparing jobs...")
-	for _, s := range options.stages {
-		if !slices.Contains(r.cfg.Stages, s) {
-			return fmt.Errorf("invalid stage %q, not present in config file: %q", s, r.cfg.FileName)
-		}
-	}
 
 	// TODO: This feels bad man...
 
@@ -131,18 +126,23 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	}
 
 	if len(options.stages) != 0 {
-		for k, j := range r.cfg.Jobs {
-			if slices.Contains(options.stages, j.Stage) {
-				r.jobs[k] = j
+		for _, s := range options.stages {
+			if !slices.Contains(r.cfg.Stages, s) {
+				return fmt.Errorf("Requested stage %q is not present in config file: %q", s, r.cfg.FileName)
+			}
+		}
+		for _, job := range r.cfg.Jobs {
+			if slices.Contains(options.stages, job.Stage) {
+				r.jobs = append(r.jobs, job)
 			}
 		}
 		return nil
 	}
 
 	for _, s := range r.cfg.Stages {
-		for k, j := range r.cfg.Jobs {
-			if j.Stage == s {
-				r.jobs[k] = j
+		for _, job := range r.cfg.Jobs {
+			if job.Stage == s {
+				r.jobs = append(r.jobs, job)
 			}
 		}
 	}

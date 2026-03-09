@@ -10,6 +10,7 @@
 - [Technical Details](#technical-details)
    - [Container Management](#container-management)
    - [Environment Variables](#environment-variables)
+   - [Remote Provider](#remote-provider)
    - [File System Handling](#file-system-handling)
    - [Caching System](#caching-system)
    - [Job-Specific Execution](#job-specific-execution)
@@ -100,6 +101,7 @@ Environment variables from global and job-specific contexts are merged:
 
 1. Global variables are applied first
 2. Job-specific variables override globals with the same name
+3. Variables which start with `$` will be treated as local variables, so for example if you need to pass a variable from your local environment, you can prefix it with `$` and it will become available in the job environment.
 
 Example:
 ```yaml
@@ -117,6 +119,11 @@ The job environment would contain:
 GLOBAL_VAR=override_value
 JOB_VAR=job_value
 ```
+
+### Remote Provider
+Provide your GitLab host name and access token for local-ci to access and inject your project's environment variables.
+
+Received this way, variables are treated as global variables af is specified through high level ```variables``` keyword.
 
 ### File System Handling
 The tool provides smart file system handling with .gitignore support:

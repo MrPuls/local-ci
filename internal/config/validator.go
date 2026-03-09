@@ -3,11 +3,36 @@ package config
 import (
 	"fmt"
 	"slices"
+
+	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
 )
 
 func ValidateConfig(cfg *Config) error {
 	stages := cfg.Stages
 	blocks := cfg.Jobs
+
+	if cfg.RemoteProvider != nil {
+		if cfg.RemoteProvider.Url == "" {
+			return fmt.Errorf("[YAML] %s config file has an empty remote provider's url. Either specify a valid url or remove the 'remote_provider' field.", cfg.FileName)
+		}
+		if cfg.RemoteProvider.ProjectId == 0 {
+			return fmt.Errorf("[YAML] %s config file has an empty remote provider's project_id. Either specify a valid project_id or remove the 'remote_provider' field.", cfg.FileName)
+		}
+		if cfg.RemoteProvider.Token == "" {
+			return fmt.Errorf("[YAML] %s config file has an empty remote provider's token. Either specify a valid token or remove the 'remote_provider' field.", cfg.FileName)
+		}
+		options := gitlab.GitlabOptions{
+			Url:       cfg.RemoteProvider.Url,
+			Token:     cfg.RemoteProvider.Token,
+			ProjectId: cfg.RemoteProvider.ProjectId,
+		}
+		gtl := gitlab.NewGitLabUtil(&options)
+		vars := gtl.GetRemoteVariables()
+		if vars == nil {
+			return fmt.Errorf("[YAML] %s config file has an invalid remote provider configuration. "+
+				"Please check the 'remote_provider' field. [Details: Failed to fetch variables]", cfg.FileName)
+		}
+	}
 
 	if len(stages) == 0 {
 		return fmt.Errorf("[YAML] %s config file has no stages defined: %v. "+

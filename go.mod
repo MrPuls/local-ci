@@ -1,6 +1,6 @@
 module github.com/MrPuls/local-ci
 
-go 1.25.0
+go 1.26.1
 
 require (
 	github.com/docker/docker v28.4.0+incompatible

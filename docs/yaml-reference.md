@@ -7,6 +7,7 @@
   - [Pipeline Configuration](#pipeline-configuration)
     - [stages](#stages)
     - [variables (global level)](#variables-global-level)
+    - [remote provider (global level)](#remote-provider-global-level)
   - [Job Configuration](#job-configuration)
     - [stage](#stage)
     - [image](#image)
@@ -79,6 +80,18 @@ job_name:
   variables:
     API_URL: "https://api.example.com"
     LOG_LEVEL: "info"
+  ```
+
+#### remote provider (global level)
+- Required: No
+- Type: Map of key-value pairs
+- Description: Configuration for the remote provider (i.e. Gitlab, which is the only one supported. currently :c). Currently allows to get env variables from the remote provider.
+- Example:
+  ```yaml
+  remote_provider:
+    url: "gitlab.example.com"
+    project_id: 12345678
+    access_token: "your_access_token"
   ```
 
 ### Job Configuration
