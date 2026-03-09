@@ -112,12 +112,14 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 }
 
 func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
-	log.Println("Starting prepare jobs...")
+	log.Println("Preparing jobs...")
 	for _, s := range options.stages {
 		if !slices.Contains(r.cfg.Stages, s) {
 			return fmt.Errorf("invalid stage %q, not present in config file: %q", s, r.cfg.FileName)
 		}
 	}
+
+	// TODO: This feels bad man...
 
 	if len(options.jobNames) != 0 {
 		for _, job := range r.cfg.Jobs {
@@ -129,19 +131,18 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	}
 
 	if len(options.stages) != 0 {
-		for k, v := range r.cfg.Jobs {
-			if slices.Contains(options.stages, v.Stage) {
-				r.jobs[k] = v
+		for k, j := range r.cfg.Jobs {
+			if slices.Contains(options.stages, j.Stage) {
+				r.jobs[k] = j
 			}
 		}
 		return nil
 	}
 
 	for _, s := range r.cfg.Stages {
-		for k, v := range r.cfg.Jobs {
-			log.Printf("Preparing stage %q, job %q", s, k)
-			if v.Stage == s {
-				r.jobs[k] = v
+		for k, j := range r.cfg.Jobs {
+			if j.Stage == s {
+				r.jobs[k] = j
 			}
 		}
 	}
