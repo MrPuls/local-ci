@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"testing"
+
+	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
 )
 
 func TestValidateConfig(t *testing.T) {
@@ -13,7 +15,7 @@ func TestValidateConfig(t *testing.T) {
 	}
 
 	validationErr := ValidateConfig(cfg)
-	t.Log(cfg)
+	fmt.Println(cfg.Jobs)
 	for _, v := range cfg.Jobs {
 		fmt.Println(v.Network)
 	}
@@ -56,4 +58,25 @@ func TestParseGlobalVariables(t *testing.T) {
 	if cfg.GlobalVariables["FOO"] != "Im a global variable too!" {
 		t.Error("global variable FOO not parsed")
 	}
+}
+
+func TestGitLabVariables(t *testing.T) {
+	cfg := NewConfig("test.yaml")
+	err := cfg.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := gitlab.GitlabOptions{
+		Url:       cfg.RemoteProvider.Url,
+		Token:     cfg.RemoteProvider.Token,
+		ProjectId: cfg.RemoteProvider.ProjectId,
+	}
+	gtl := gitlab.NewGitLabUtil(&options)
+	vars := gtl.GetRemoteVariables()
+	if vars == nil {
+		t.Fatal("vars is nil")
+	}
+
+	fmt.Printf("%+v", vars)
+
 }

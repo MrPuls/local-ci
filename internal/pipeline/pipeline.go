@@ -14,10 +14,11 @@ type Pipeline struct {
 	stages   []string
 }
 
-func NewPipeline(executor Executor, stages []string) *Pipeline {
+func NewPipeline(executor Executor, stages []string, jobs []config.JobConfig) *Pipeline {
 	pipeline := &Pipeline{
 		executor: executor,
 		stages:   stages,
+		jobs:     jobs,
 	}
 	return pipeline
 }

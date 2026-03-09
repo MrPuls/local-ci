@@ -2,8 +2,11 @@ package config
 
 import (
 	"fmt"
+	"log"
+	"maps"
 	"os"
 
+	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -15,6 +18,12 @@ type NetworkConfig struct {
 type CacheConfig struct {
 	Key   string   `yaml:"key"`
 	Paths []string `yaml:"paths"`
+}
+
+type RemoteProvider struct {
+	Url       string `yaml:"url"`
+	ProjectId int    `yaml:"project_id"`
+	Token     string `yaml:"access_token"`
 }
 
 type JobConfig struct {
@@ -33,6 +42,7 @@ type Config struct {
 	Stages          []string          `yaml:"stages"`
 	Jobs            []JobConfig       `yaml:"-"`
 	GlobalVariables map[string]string `yaml:"variables,omitempty"`
+	RemoteProvider  *RemoteProvider   `yaml:"remote_provider,omitempty"`
 }
 
 func NewConfig(file string) *Config {
@@ -45,25 +55,44 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	type Alias Config
 	alias := (*Alias)(c) // to avoid recursion
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := node.Decode(&raw); err != nil {
 		return err
 	}
 
-	if stages, ok := raw["stages"].([]interface{}); ok {
+	if stages, ok := raw["stages"].([]any); ok {
 		for _, stage := range stages {
 			alias.Stages = append(alias.Stages, stage.(string))
 		}
 	}
 
-	if variables, ok := raw["variables"].(map[string]interface{}); ok {
+	if variables, ok := raw["variables"].(map[string]any); ok {
+		log.Println("Collecting global variables...")
 		alias.GlobalVariables = make(map[string]string)
 		for k, v := range variables {
 			alias.GlobalVariables[k] = v.(string)
 		}
 	}
 
+	if provider, ok := raw["remote_provider"].(map[string]any); ok {
+		log.Println("Remote provider found, proceeding to fetch variables for GitLab project....")
+		alias.RemoteProvider = &RemoteProvider{
+			Url:       provider["url"].(string),
+			ProjectId: provider["project_id"].(int),
+			Token:     provider["access_token"].(string),
+		}
+		options := gitlab.GitlabOptions{
+			Url:       alias.RemoteProvider.Url,
+			Token:     alias.RemoteProvider.Token,
+			ProjectId: alias.RemoteProvider.ProjectId,
+		}
+		gtl := gitlab.NewGitLabUtil(&options)
+		vars := gtl.GetRemoteVariables()
+		maps.Copy(alias.GlobalVariables, vars)
+	}
+
 	if node.Kind == yaml.MappingNode {
+		log.Println("Collecting jobs...")
 		for i := 0; i < len(node.Content); i += 2 { // to iterate over keys only
 			keyNode := node.Content[i]
 			valueNode := node.Content[i+1]
@@ -73,7 +102,7 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 				continue
 			}
 
-			if key == "stages" || key == "variables" {
+			if key == "stages" || key == "variables" || key == "remote_provider" {
 				continue
 			}
 
