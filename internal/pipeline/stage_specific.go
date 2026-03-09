@@ -3,45 +3,38 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"github.com/MrPuls/local-ci/internal/config"
-	"github.com/MrPuls/local-ci/internal/globals"
-	"github.com/MrPuls/local-ci/internal/job"
 	"log"
 	"slices"
+
+	"github.com/MrPuls/local-ci/internal/config"
 )
 
 type StageSpecificPipeline struct {
 	executor   Executor
 	config     *config.Config
 	stageNames []string
-	variables  globals.Variables
 }
 
-func NewStageSpecificPipeline(executor Executor, variables globals.Variables, stageNames []string, config *config.Config) *StageSpecificPipeline {
+func NewStageSpecificPipeline(executor Executor, stageNames []string, config *config.Config) *StageSpecificPipeline {
 	return &StageSpecificPipeline{
 		executor:   executor,
 		config:     config,
 		stageNames: stageNames,
-		variables:  variables,
 	}
 }
 
 func (p *StageSpecificPipeline) Run(ctx context.Context) error {
-	var jobs []job.Job
-	for k, v := range p.config.Jobs {
+	var jobs []config.JobConfig
+	for _, v := range p.config.Jobs {
 		if slices.Contains(p.stageNames, v.Stage) {
-			log.Printf("Found the job %s for stage %s", k, v.Stage)
-			// Create the job from config
-			newJob := job.NewJobConfig(k, p.config.Jobs[k], p.variables)
-			jobs = append(jobs, newJob)
+			log.Printf("Found the job %s for stage %s", v.Name, v.Stage)
+			jobs = append(jobs, v)
 		}
 	}
-
 	if len(jobs) == 0 {
 		return fmt.Errorf("No jobs were found for stages: [%v] ", p.stageNames)
 	}
 
-	// Execute the jobs
 	for _, j := range jobs {
 		if err := p.executor.Execute(ctx, j); err != nil {
 			return fmt.Errorf("job failed: %v", err)

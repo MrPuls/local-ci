@@ -2,12 +2,13 @@ package app
 
 import (
 	"context"
-	"github.com/MrPuls/local-ci/internal/config"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/MrPuls/local-ci/internal/config"
 )
 
 type Orchestrator struct{}
