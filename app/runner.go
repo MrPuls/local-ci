@@ -51,7 +51,7 @@ func (r *Runner) Run() error {
 		}
 	}(dockerClient)
 
-	adapter := docker.NewConfigAdapter()
+	adapter := docker.NewConfigAdapter(r.cfg)
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	var runErr error

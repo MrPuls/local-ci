@@ -29,7 +29,7 @@ func NewDockerExecutor(client *client.Client, adapter ConfigAdapter) *Executor {
 
 func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 	cm := NewContainerManager(e.client, e.adapter)
-	im := NewImageManager(e.client)
+	im := NewImageManager(e.client, e.adapter)
 	log.Println("Parsing working directory...")
 	wd, wdErr := os.Getwd()
 	if wdErr != nil {
