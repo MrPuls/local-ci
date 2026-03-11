@@ -88,7 +88,9 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 		}
 		gtl := gitlab.NewGitLabUtil(&options)
 		vars := gtl.GetRemoteVariables()
-		maps.Copy(alias.GlobalVariables, vars)
+		// merge remote variables into global variables, global variables take precedence
+		maps.Copy(vars, alias.GlobalVariables)
+		alias.GlobalVariables = vars
 	}
 
 	if node.Kind == yaml.MappingNode {
