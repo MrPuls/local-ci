@@ -125,6 +125,8 @@ Provide your GitLab host name and access token for local-ci to access and inject
 
 Received this way, variables are treated as global variables af is specified through high level ```variables``` keyword.
 
+Provided hostname allows for modification of docker's auth credential, hence providing access to custom/self-hosted registries. In case of GitLab, allows for accessing images saved in private registries without needing to configure Docker credentials separately.
+
 ### File System Handling
 The tool provides smart file system handling with .gitignore support:
 

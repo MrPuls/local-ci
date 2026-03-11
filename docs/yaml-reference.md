@@ -85,7 +85,7 @@ job_name:
 #### remote provider (global level)
 - Required: No
 - Type: Map of key-value pairs
-- Description: Configuration for the remote provider (i.e. Gitlab, which is the only one supported. currently :c). Currently allows to get env variables from the remote provider.
+- Description: Configuration for the remote provider (i.e. Gitlab, which is the only one supported. currently :c). Currently allows to get env variables from the remote provider. When collected, these variables are made available to all jobs as if they were defined in the `variables` (global) section. In case of a conflict, global variables take precedence over remote provider variables.
 - Example:
   ```yaml
   remote_provider:
