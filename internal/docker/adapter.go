@@ -15,12 +15,17 @@ import (
 type ConfigAdapter interface {
 	ToContainerConfig(job config.JobConfig) *container.Config
 	ToHostConfig(job config.JobConfig) *container.HostConfig
+	ToImageHostConfig(image string) string
 }
 
-type configAdapter struct{}
+type configAdapter struct {
+	config *config.Config
+}
 
-func NewConfigAdapter() ConfigAdapter {
-	return &configAdapter{}
+func NewConfigAdapter(cfg *config.Config) ConfigAdapter {
+	return &configAdapter{
+		config: cfg,
+	}
 }
 
 func (a *configAdapter) ToContainerConfig(job config.JobConfig) *container.Config {
@@ -115,4 +120,15 @@ func (a *configAdapter) getExtraHosts(jobNetwork *config.NetworkConfig) []string
 		extraHosts = append(extraHosts, "host.docker.internal:host-gateway")
 	}
 	return extraHosts
+}
+
+func (a *configAdapter) ToImageHostConfig(image string) string {
+	if a.config.RemoteProvider != nil {
+		hostname := a.config.RemoteProvider.Url
+		hostname = strings.TrimSuffix(hostname, "/")
+		hostname = strings.TrimPrefix(hostname, "http://")
+		hostname = strings.TrimPrefix(hostname, "https://")
+		return hostname
+	}
+	return ""
 }
