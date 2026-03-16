@@ -44,7 +44,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&configFile, "config", "c", ".local-ci.yaml", "Path to configuration file")
 	cmd.Flags().StringSliceVarP(&jobs, "job", "j", []string{}, "Run a specific job(-s) from a configuration file")
 	cmd.Flags().StringSliceVarP(&stages, "stage", "s", []string{}, "Run a specific stage(-s) from a configuration file")
-	cmd.Flags().StringVarP(&remote, "remote", "r", "", "Pull a renote repo locally and run it's local-ci.yaml file")
+	cmd.Flags().StringVarP(&remote, "remote", "r", "", "Pull a remote repo locally and run it's local-ci.yaml file")
 
 	return cmd
 }

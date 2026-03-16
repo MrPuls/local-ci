@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/config"
+	"github.com/MrPuls/local-ci/internal/integrations/git"
 )
 
 type Orchestrator struct{}
@@ -31,6 +32,12 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
 
+	if options.Remote != "" {
+		err := git.SetupLocal(options.Remote)
+		if err != nil {
+			return err
+		}
+	}
 	cfg := config.NewConfig(configFile)
 	if configLoadErr := cfg.LoadConfig(); configLoadErr != nil {
 		return configLoadErr

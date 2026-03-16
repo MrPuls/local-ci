@@ -12,16 +12,11 @@ import (
 )
 
 func Clone(dir string, repoURL string) error {
-	_, err := os.Stat(dir)
-	if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check if dir exists: %w", err)
-	}
-
+	log.Println("Cloning repo...")
 	cmd := exec.Command("git", "clone", repoURL)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	log.Println("Cloning repo...")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to clone repo: %w", err)
 	}
