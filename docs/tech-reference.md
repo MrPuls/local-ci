@@ -337,8 +337,11 @@ This architecture ensures that Local CI behaves well even when interrupted, leav
    - Sequential execution within stages
    - Fixed one-hour timeout
    - Job-specific execution bypasses stage dependencies
+   - No Github integration similar to GitLab
 
 2. **Future Enhancements**:
    - Parallel job execution within stages
    - Persistent services support
-   - Access to custom registries
+   - Setup command that executes before job runs (e.g. docker-compose up, env setup)
+   - Teardown command that executes after job runs
+   - Git integration
