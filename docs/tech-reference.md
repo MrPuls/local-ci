@@ -16,11 +16,12 @@
    - [Job-Specific Execution](#job-specific-execution)
    - [Stage-Specific Execution](#stage-specific-execution)
    - [Graceful Shutdown](#graceful-shutdown)
+   - [Remote Clone and Execution](#remote-clone-and-execution)
 - [Limitations and Notes](#limitations-and-notes)
 
 ## Command Line Interface
 
-Local CI features a simple but powerful command-line interface:
+Local CI features a simple command-line interface:
 
 ```bash
 # Run pipeline with default config
@@ -330,6 +331,16 @@ The graceful shutdown feature is implemented through:
 
 This architecture ensures that Local CI behaves well even when interrupted, leaving your system in a clean state without orphaned containers or resources.
 
+## Remote Clone and Execution
+
+Local CI supports cloning the repository and executing the pipeline configuration from a remote URL.
+
+```bash
+local-ci run --remote <repository_url>
+```
+
+This will `git clone` the repositiry to `~/.local/shared/local-ci/<repository_name>` and run the yaml configuration from that location. If the repository is already cloned, Local CI will `git pull` to update the existing clone. Currently, only the main branch is supported but branch switching is planned.
+
 ## Limitations and Notes
 
 1. **Current Limitations**:
@@ -337,8 +348,15 @@ This architecture ensures that Local CI behaves well even when interrupted, leav
    - Sequential execution within stages
    - Fixed one-hour timeout
    - Job-specific execution bypasses stage dependencies
+   - No Github integration similar to GitLab
 
 2. **Future Enhancements**:
    - Parallel job execution within stages
    - Persistent services support
-   - Access to custom registries
+   - Setup command that executes before job runs (e.g. docker-compose up, env setup)
+   - Teardown command that executes after job runs
+   - Git branch switching for cloned repositories via `--remote` command
+   - Alias support for remote repository URLs
+   - List command for available remote repositories and local clones
+   - Installation via Homebrew
+   - Remote execution support (run your pipeline on a remote machine)
