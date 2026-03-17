@@ -7,8 +7,7 @@ import (
 )
 
 func TestChDir(t *testing.T) {
-
-	dir, err := GetDefaultDir()
+	dir, err := MakeDefaultDir()
 	if err != nil {
 		t.Fatalf("failed to get default dir: %v", err)
 	}
