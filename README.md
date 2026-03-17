@@ -67,6 +67,9 @@ local-ci run --stage stageName
 
 # Or use multiple stages
 local-ci run --stage stageName1,stageName2
+
+# Clone/update the repository and run it's local-ci.yaml with --remote/-r
+local-ci run --remote <repository_url>
 ```
 
 ## Quick Start
