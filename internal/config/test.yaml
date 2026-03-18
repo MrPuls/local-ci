@@ -2,11 +2,6 @@ stages:
   - step 1
   - step 2
 
-remote_provider:
-  url: "gitlab.com"
-  project_id: 80103456
-  access_token: $GITLAB_TOKEN
-
 bootstrap:
   run:
     - docker-compose up -d
