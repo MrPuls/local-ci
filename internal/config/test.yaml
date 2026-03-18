@@ -5,7 +5,12 @@ stages:
 remote_provider:
   url: "gitlab.com"
   project_id: 80103456
-  access_token: glpat-oA7rd9bgaZdNOiYj6YInOG86MQp1OmJrdmtqCw.01.120ds9ewf
+  access_token: $GITLAB_TOKEN
+
+bootstrap:
+  run:
+    - docker-compose up -d
+  timeout: 10
 
 variables:
   BAR: "Im a global variable"

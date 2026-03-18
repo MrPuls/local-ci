@@ -5,6 +5,7 @@ import (
 	"log"
 	"maps"
 	"os"
+	"slices"
 
 	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
 	"go.yaml.in/yaml/v4"
@@ -26,6 +27,11 @@ type RemoteProvider struct {
 	Token     string `yaml:"access_token"`
 }
 
+type BootstrapConfig struct {
+	Run     []string `yaml:"run"`
+	Timeout int      `yaml:"timeout,omitempty"`
+}
+
 type JobConfig struct {
 	Name      string            `yaml:"-"`
 	Image     string            `yaml:"image"`
@@ -43,6 +49,8 @@ type Config struct {
 	Jobs            []JobConfig       `yaml:"-"`
 	GlobalVariables map[string]string `yaml:"variables,omitempty"`
 	RemoteProvider  *RemoteProvider   `yaml:"remote_provider,omitempty"`
+	CLIVariables    map[string]string `yaml:"-"`
+	Bootstrap       *BootstrapConfig  `yaml:"bootstrap,omitempty"`
 }
 
 func NewConfig(file string) *Config {
@@ -53,6 +61,7 @@ func NewConfig(file string) *Config {
 
 func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	type Alias Config
+	nonJobFields := []string{"stages", "bootstrap", "variables", "remote_provider"}
 	alias := (*Alias)(c) // to avoid recursion
 
 	var raw map[string]any
@@ -63,6 +72,21 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	if stages, ok := raw["stages"].([]any); ok {
 		for _, stage := range stages {
 			alias.Stages = append(alias.Stages, stage.(string))
+		}
+	}
+
+	if bootstrap, ok := raw["bootstrap"].(map[string]any); ok {
+		alias.Bootstrap = &BootstrapConfig{
+			Timeout: 0,
+			Run:     []string{},
+		}
+
+		if timeout, ok := bootstrap["timeout"]; ok {
+			alias.Bootstrap.Timeout = timeout.(int)
+		}
+
+		for _, cmd := range bootstrap["run"].([]any) {
+			alias.Bootstrap.Run = append(alias.Bootstrap.Run, cmd.(string))
 		}
 	}
 
@@ -104,7 +128,7 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 				continue
 			}
 
-			if key == "stages" || key == "variables" || key == "remote_provider" {
+			if slices.Contains(nonJobFields, key) {
 				continue
 			}
 

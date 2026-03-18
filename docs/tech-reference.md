@@ -17,6 +17,7 @@
    - [Stage-Specific Execution](#stage-specific-execution)
    - [Graceful Shutdown](#graceful-shutdown)
    - [Remote Clone and Execution](#remote-clone-and-execution)
+   - [Bootstrap](#bootstrap)
 - [Limitations and Notes](#limitations-and-notes)
 
 ## Command Line Interface
@@ -341,9 +342,22 @@ local-ci run --remote <repository_url>
 
 This will `git clone` the repositiry to `~/.local/shared/local-ci/<repository_name>` and run the yaml configuration from that location. If the repository is already cloned, Local CI will `git pull` to update the existing clone. Currently, only the main branch is supported but branch switching is planned.
 
+## Bootstrap
+
+Bootstrap runs host-level setup commands before any job containers are started. Each command is executed sequentially on the host machine with a shared timeout context — if the timeout is exceeded, remaining commands are cancelled and the pipeline does not proceed.
+
+Timeout is specified as an integer representing minutes. If not provided, defaults to 5 minutes.
+
+Example output:
+```
+Running bootstrap with timeout 5 minutes
+Running bootstrap command: docker compose -f docker-compose.yml up -d
+```
+
 ## Limitations and Notes
 
 1. **Current Limitations**:
+
    - Single-node execution only
    - Sequential execution within stages
    - Fixed one-hour timeout
@@ -351,10 +365,10 @@ This will `git clone` the repositiry to `~/.local/shared/local-ci/<repository_na
    - No Github integration similar to GitLab
 
 2. **Future Enhancements**:
+
    - Parallel job execution within stages
    - Persistent services support
-   - Setup command that executes before job runs (e.g. docker-compose up, env setup)
-   - Teardown command that executes after job runs
+   - Cleanup block (companion to bootstrap)
    - Git branch switching for cloned repositories via `--remote` command
    - Alias support for remote repository URLs
    - List command for available remote repositories and local clones
