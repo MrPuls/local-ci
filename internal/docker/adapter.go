@@ -3,6 +3,7 @@ package docker
 import (
 	"fmt"
 	"log"
+	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -62,12 +63,8 @@ func (a *configAdapter) transformEnvVars(variables map[string]string) []string {
 
 	var envVars []string
 	log.Println("[Docker] Getting environment variables")
+	maps.Copy(variables, a.config.CLIVariables)
 	for k, v := range variables {
-		if a.config.CLIVariables != nil {
-			if cliValue, found := a.config.CLIVariables[k]; found {
-				v = cliValue
-			}
-		}
 		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
 	}
 	return envVars
