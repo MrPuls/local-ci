@@ -21,6 +21,7 @@ type GitLabUtil struct {
 	apiPath         string
 	apiProjectsPath string
 	variablesSlug   string
+	paginationQuery string
 }
 
 type Variable struct {
@@ -36,6 +37,7 @@ func NewGitLabUtil(options *GitlabOptions) *GitLabUtil {
 		apiPath:         "/api/v4",
 		apiProjectsPath: "/projects/",
 		variablesSlug:   "/variables",
+		paginationQuery: "?per_page=1000",
 	}
 }
 
@@ -82,5 +84,5 @@ func (g *GitLabUtil) constructURL(url string) string {
 }
 
 func (g *GitLabUtil) assembleVariablesURL(projectId int) string {
-	return g.constructURL(g.Url) + g.apiPath + g.apiProjectsPath + fmt.Sprintf("%d", projectId) + g.variablesSlug
+	return g.constructURL(g.Url) + g.apiPath + g.apiProjectsPath + fmt.Sprintf("%d", projectId) + g.variablesSlug + g.paginationQuery
 }
