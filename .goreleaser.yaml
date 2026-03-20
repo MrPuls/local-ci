@@ -4,7 +4,7 @@ project_name: local-ci
 
 builds:
   - main: ./cmd/local-ci/
-  - env:
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -14,7 +14,7 @@ builds:
       - arm64
 
 archives:
-  - format: ["zip"]
+  - formats: ["zip", "tar.gz"]
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
