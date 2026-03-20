@@ -20,11 +20,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
-          version: latest
+          distribution: goreleaser
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # This token needs repo scope to push to homebrew-local-ci
           PUBLISHER_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
