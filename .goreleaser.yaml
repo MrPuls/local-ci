@@ -32,8 +32,6 @@ homebrew_casks:
     directory: Casks
     homepage: "https://github.com/MrPuls/local-ci"
     description: "Run Docker-based CI pipelines locally"
-    alternative_names:
-      - "local-ci@{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
     binaries:
       - local-ci
     hooks:
