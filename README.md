@@ -22,21 +22,26 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 
 ### Prerequisites
 
-1. Go 1.21 or later
-   - Visit [Go Downloads](https://golang.org/dl/) page
-   - Download and install the latest version for your operating system
-   - Verify installation with `go version`
+- Docker must be installed and running
+- Your user must have permissions to access the Docker daemon
+- Verify installation with `docker --version`
 
-2. Docker
-   - Must be installed and running
-   - Your user must have permissions to access the Docker daemon
-   - Verify installation with `docker --version`
+### Homebrew (macOS)
+```bash
+brew install --cask MrPuls/local-ci/local-ci
+```
 
-### Installing
+### Go Install
 
+Requires Go 1.21 or later ([download](https://golang.org/dl/)).
 ```bash
 go install github.com/MrPuls/local-ci/cmd/local-ci@latest
 ```
+
+### Manual
+
+Download the latest binary for your platform from the [releases page](https://github.com/MrPuls/local-ci/releases).
+
 
 ## Usage
 
