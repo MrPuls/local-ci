@@ -34,6 +34,17 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
+	if cfg.Bootstrap != nil {
+		if len(cfg.Bootstrap.Run) == 0 {
+			return fmt.Errorf("[YAML] %s config file has an empty bootstrap 'run' field. "+
+				"Please add at least one script to run.", cfg.FileName)
+		}
+		if cfg.Bootstrap.Timeout < 0 {
+			return fmt.Errorf("[YAML] %s config file has a negative bootstrap 'timeout' field. "+
+				"Please specify a positive timeout value.", cfg.FileName)
+		}
+	}
+
 	if len(stages) == 0 {
 		return fmt.Errorf("[YAML] %s config file has no stages defined: %v. "+
 			"Please add at least one stage."+

@@ -8,6 +8,7 @@
     - [stages](#stages)
     - [variables (global level)](#variables-global-level)
     - [remote provider (global level)](#remote-provider-global-level)
+    - [bootstrap](#bootstrap)
   - [Job Configuration](#job-configuration)
     - [stage](#stage)
     - [image](#image)
@@ -93,6 +94,23 @@ job_name:
     project_id: 12345678
     access_token: "your_access_token"
   ```
+
+#### Bootstrap
+- Required: No
+- Type: Map with the following options:
+  - run: Array of strings (Shell commands executed on the host machine before any jobs are started)
+  - timeout: Int (Maximum time to wait for bootstrap commands to complete in minutes, defaults to 5 if not set)
+- Description: Defines host-level setup commands that run before any job containers are started. Intended for infrastructure preparation such as spinning up external services (e.g. via `docker compose`) that job containers will depend on. 
+
+Important: Bootstrap runs on the host, not inside a container.
+- Example
+  ```yaml
+  bootstrap:
+    run:
+      - docker compose -f docker-compose.yml up -d
+    timeout: 5
+  ```
+
 
 ### Job Configuration
 

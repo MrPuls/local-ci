@@ -6,11 +6,12 @@ import (
 )
 
 var (
-	version    = "0.0.19"
+	version    = "0.0.20"
 	configFile string
 	jobs       []string
 	stages     []string
 	remote     string
+	env        []string
 )
 
 var rootCmd = &cobra.Command{
@@ -36,6 +37,7 @@ func newRunCmd() *cobra.Command {
 				JobNames: jobs,
 				Stages:   stages,
 				Remote:   remote,
+				Env:      env,
 			})
 		},
 	}
@@ -45,6 +47,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&jobs, "job", "j", []string{}, "Run a specific job(-s) from a configuration file")
 	cmd.Flags().StringSliceVarP(&stages, "stage", "s", []string{}, "Run a specific stage(-s) from a configuration file")
 	cmd.Flags().StringVarP(&remote, "remote", "r", "", "Pull a remote repo locally and run it's local-ci.yaml file")
+	cmd.Flags().StringSliceVarP(&env, "env", "e", []string{}, "Set environment variables for the pipeline")
 
 	return cmd
 }

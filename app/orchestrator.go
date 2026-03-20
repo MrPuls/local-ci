@@ -5,10 +5,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/config"
+	"github.com/MrPuls/local-ci/internal/integrations/cmd"
 	"github.com/MrPuls/local-ci/internal/integrations/git"
 )
 
@@ -22,6 +24,7 @@ type OrchestratorOptions struct {
 	JobNames []string
 	Stages   []string
 	Remote   string
+	Env      []string
 }
 
 var (
@@ -31,13 +34,6 @@ var (
 func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOptions) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
-
-	if options.Remote != "" {
-		err := git.SetupLocal(options.Remote)
-		if err != nil {
-			return err
-		}
-	}
 	cfg := config.NewConfig(configFile)
 	if configLoadErr := cfg.LoadConfig(); configLoadErr != nil {
 		return configLoadErr
@@ -47,11 +43,32 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	if validatorErr := config.ValidateConfig(cfg); validatorErr != nil {
 		return validatorErr
 	}
+
+	if options.Remote != "" {
+		err := git.SetupLocal(options.Remote)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(options.Env) != 0 {
+		cfg.CLIVariables = make(map[string]string)
+		for _, env := range options.Env {
+			key, value, found := strings.Cut(env, "=")
+			if found {
+				cfg.CLIVariables[key] = value
+			}
+		}
+	}
+
+	cmd.RunBootstrap(cfg.Bootstrap)
+
 	runner := NewRunner(ctx, cfg)
 	prepErr := runner.PrepareJobConfigs(
 		RunnerOptions{
 			jobNames: options.JobNames,
-			stages:   options.Stages},
+			stages:   options.Stages,
+		},
 	)
 
 	if prepErr != nil {
