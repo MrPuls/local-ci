@@ -1,0 +1,39 @@
+project_name: local-ci
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - name: local-ci
+    repository:
+      owner: MrPuls
+      name: homebrew-local-ci
+      token: "{{ .Env.PUBLISHER_TOKEN }}"
+    homepage: "https://github.com/MrPuls/local-ci"
+    description: "Run CI pipelines locally using Docker"
+    folder: Formula
+    install: |
+      bin.install "local-ci"
+    test: |
+      system "#{bin}/local-ci --version"
