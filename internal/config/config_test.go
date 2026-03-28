@@ -1,59 +1,312 @@
 package config
 
 import (
-	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestValidateConfig(t *testing.T) {
-	cfg := NewConfig("test.yaml")
-	err := cfg.LoadConfig()
-	if err != nil {
-		t.Errorf("error parsing yaml: %v", err)
+func writeTestYAML(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test yaml: %v", err)
 	}
-
-	validationErr := ValidateConfig(cfg)
-	fmt.Println(cfg.Jobs)
-	for _, v := range cfg.Jobs {
-		fmt.Println(v.Network)
-	}
-	if validationErr != nil {
-		t.Errorf("error validating yaml: %v", validationErr)
-	}
-
+	return path
 }
 
-func TestParseVariable(t *testing.T) {
-	cfg := NewConfig("test.yaml")
-	err := cfg.LoadConfig()
-	if err != nil {
-		t.Error("error parsing yaml")
-	}
-	for _, j := range cfg.Jobs {
-		var variables []string
-		if j.Variables != nil {
-			for k, v := range j.Variables {
-				variables = append(variables, fmt.Sprintf("%s=%s", k, v))
-			}
-			t.Log(cfg.Jobs)
-			t.Log(variables)
+func TestLoadConfig_BasicPipeline(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+  - test
 
-			if len(variables) != len(j.Variables) {
-				t.Error("variables were not parsed")
+variables:
+  GLOBAL_VAR: "hello"
+
+Build:
+  stage: build
+  image: golang:1.21
+  script:
+    - go build
+
+Test:
+  stage: test
+  image: golang:1.21
+  script:
+    - go test ./...
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if len(cfg.Stages) != 2 {
+		t.Errorf("expected 2 stages, got %d", len(cfg.Stages))
+	}
+	if len(cfg.Jobs) != 2 {
+		t.Errorf("expected 2 jobs, got %d", len(cfg.Jobs))
+	}
+}
+
+func TestLoadConfig_GlobalVariablesMergedIntoJobs(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+variables:
+  FOO: "global"
+  BAR: "global"
+
+Build:
+  stage: build
+  image: alpine
+  variables:
+    FOO: "overridden"
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if len(cfg.Jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(cfg.Jobs))
+	}
+
+	job := cfg.Jobs[0]
+	if job.Variables["FOO"] != "overridden" {
+		t.Errorf("expected FOO to be overridden, got %q", job.Variables["FOO"])
+	}
+	if job.Variables["BAR"] != "global" {
+		t.Errorf("expected BAR to be inherited from global, got %q", job.Variables["BAR"])
+	}
+}
+
+func TestLoadConfig_DefaultWorkdir(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+Build:
+  stage: build
+  image: alpine
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.Jobs[0].Workdir != "/" {
+		t.Errorf("expected default workdir '/', got %q", cfg.Jobs[0].Workdir)
+	}
+}
+
+func TestLoadConfig_CustomWorkdir(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+Build:
+  stage: build
+  image: alpine
+  workdir: /app
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.Jobs[0].Workdir != "/app" {
+		t.Errorf("expected workdir '/app', got %q", cfg.Jobs[0].Workdir)
+	}
+}
+
+func TestLoadConfig_BootstrapAndCleanup(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+bootstrap:
+  run:
+    - docker compose up -d
+  timeout: 10
+
+cleanup:
+  run:
+    - docker compose down
+  timeout: 5
+
+Build:
+  stage: build
+  image: alpine
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.Bootstrap == nil {
+		t.Fatal("expected bootstrap to be parsed")
+	}
+	if len(cfg.Bootstrap.Run) != 1 || cfg.Bootstrap.Run[0] != "docker compose up -d" {
+		t.Errorf("unexpected bootstrap run: %v", cfg.Bootstrap.Run)
+	}
+	if cfg.Bootstrap.Timeout != 10 {
+		t.Errorf("expected bootstrap timeout 10, got %d", cfg.Bootstrap.Timeout)
+	}
+
+	if cfg.Cleanup == nil {
+		t.Fatal("expected cleanup to be parsed")
+	}
+	if len(cfg.Cleanup.Run) != 1 || cfg.Cleanup.Run[0] != "docker compose down" {
+		t.Errorf("unexpected cleanup run: %v", cfg.Cleanup.Run)
+	}
+	if cfg.Cleanup.Timeout != 5 {
+		t.Errorf("expected cleanup timeout 5, got %d", cfg.Cleanup.Timeout)
+	}
+}
+
+func TestLoadConfig_CacheConfig(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+Build:
+  stage: build
+  image: node:16
+  cache:
+    key: node-deps
+    paths:
+      - node_modules
+      - .npm
+  script:
+    - npm install
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	job := cfg.Jobs[0]
+	if job.Cache == nil {
+		t.Fatal("expected cache to be parsed")
+	}
+	if job.Cache.Key != "node-deps" {
+		t.Errorf("expected cache key 'node-deps', got %q", job.Cache.Key)
+	}
+	if len(job.Cache.Paths) != 2 {
+		t.Errorf("expected 2 cache paths, got %d", len(job.Cache.Paths))
+	}
+}
+
+func TestLoadConfig_NetworkConfig(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+HostAccess:
+  stage: build
+  image: alpine
+  network:
+    host_access: true
+  script:
+    - echo hi
+
+HostMode:
+  stage: build
+  image: alpine
+  network:
+    host_mode: true
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if len(cfg.Jobs) != 2 {
+		t.Fatalf("expected 2 jobs, got %d", len(cfg.Jobs))
+	}
+
+	for _, job := range cfg.Jobs {
+		if job.Network == nil {
+			t.Errorf("expected network config on job %s", job.Name)
+			continue
+		}
+		switch job.Name {
+		case "HostAccess":
+			if !job.Network.HostAccess {
+				t.Error("expected host_access to be true")
+			}
+		case "HostMode":
+			if !job.Network.HostMode {
+				t.Error("expected host_mode to be true")
 			}
 		}
 	}
 }
 
-func TestParseGlobalVariables(t *testing.T) {
-	cfg := NewConfig("test.yaml")
-	err := cfg.LoadConfig()
-	if err != nil {
-		t.Error("error parsing yaml")
-	}
-	t.Log(cfg.GlobalVariables)
+func TestLoadConfig_RemoteProvider(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
 
-	if cfg.GlobalVariables["FOO"] != "Im a global variable too!" {
-		t.Error("global variable FOO not parsed")
+remote_provider:
+  url: "gitlab.example.com"
+  project_id: 12345
+  access_token: "my-token"
+
+Build:
+  stage: build
+  image: alpine
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.RemoteProvider == nil {
+		t.Fatal("expected remote provider to be parsed")
+	}
+	if cfg.RemoteProvider.Url != "gitlab.example.com" {
+		t.Errorf("expected URL 'gitlab.example.com', got %q", cfg.RemoteProvider.Url)
+	}
+	if cfg.RemoteProvider.ProjectId != 12345 {
+		t.Errorf("expected project ID 12345, got %d", cfg.RemoteProvider.ProjectId)
+	}
+	if cfg.RemoteProvider.Token != "my-token" {
+		t.Errorf("expected token 'my-token', got %q", cfg.RemoteProvider.Token)
+	}
+}
+
+func TestLoadConfig_NonExistentFile(t *testing.T) {
+	cfg := NewConfig("/nonexistent/path.yaml")
+	if err := cfg.LoadConfig(); err == nil {
+		t.Error("expected error for non-existent file")
+	}
+}
+
+func TestLoadConfig_InvalidYAML(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+  invalid indentation
+    broken: yaml
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err == nil {
+		t.Error("expected error for invalid YAML")
 	}
 }

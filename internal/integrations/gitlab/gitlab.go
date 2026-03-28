@@ -45,13 +45,12 @@ func (g *GitLabUtil) GetRemoteAddress() string {
 	return g.Url
 }
 
-func (g *GitLabUtil) GetRemoteVariables() map[string]string {
+func (g *GitLabUtil) GetRemoteVariables() (map[string]string, error) {
 	url := g.assembleVariablesURL(g.ProjectId)
-	res := make(map[string]string)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to create request for %s: %w", url, err)
 	}
 
 	if g.Token[0] == '$' {
@@ -62,18 +61,25 @@ func (g *GitLabUtil) GetRemoteVariables() map[string]string {
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to fetch variables from %s: %w", url, err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitLab API returned status %d for %s", resp.StatusCode, url)
+	}
+
 	var r []Variable
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to decode GitLab response: %w", err)
 	}
+
+	res := make(map[string]string)
 	for _, v := range r {
 		res[v.Key] = v.Value
 	}
 
-	defer resp.Body.Close()
-	return res
+	return res, nil
 }
 
 func (g *GitLabUtil) constructURL(url string) string {

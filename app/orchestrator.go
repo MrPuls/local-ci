@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"maps"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/integrations/cmd"
 	"github.com/MrPuls/local-ci/internal/integrations/git"
+	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
 )
 
 type Orchestrator struct{}
@@ -61,7 +64,26 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 		}
 	}
 
-	cmd.RunBootstrap(cfg.Bootstrap)
+	if cfg.RemoteProvider != nil {
+		options := gitlab.GitlabOptions{
+			Url:       cfg.RemoteProvider.Url,
+			Token:     cfg.RemoteProvider.Token,
+			ProjectId: cfg.RemoteProvider.ProjectId,
+		}
+		gtl := gitlab.NewGitLabUtil(&options)
+		vars, err := gtl.GetRemoteVariables()
+		if err != nil {
+			return fmt.Errorf("failed to fetch remote variables: %w", err)
+		}
+		// merge remote variables into global variables, global variables take precedence
+		maps.Copy(vars, cfg.GlobalVariables)
+		cfg.GlobalVariables = vars
+	}
+
+	if err := cmd.RunBootstrap(cfg.Bootstrap); err != nil {
+		return err
+	}
+	defer cmd.RunCleanup(cfg.Cleanup)
 
 	runner := NewRunner(ctx, cfg)
 	prepErr := runner.PrepareJobConfigs(
