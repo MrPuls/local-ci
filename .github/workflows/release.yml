@@ -20,6 +20,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Sync plugin version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" .claude-plugin/plugin.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" .claude-plugin/marketplace.json
+
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
