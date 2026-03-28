@@ -18,6 +18,8 @@
    - [Graceful Shutdown](#graceful-shutdown)
    - [Remote Clone and Execution](#remote-clone-and-execution)
    - [Bootstrap](#bootstrap)
+   - [Cleanup](#cleanup)
+- [Claude Code Agent](#claude-code-agent)
 - [Limitations and Notes](#limitations-and-notes)
 
 ## Command Line Interface
@@ -354,6 +356,113 @@ Running bootstrap with timeout 5 minutes
 Running bootstrap command: docker compose -f docker-compose.yml up -d
 ```
 
+## Cleanup
+
+Cleanup is the counterpart to bootstrap — it runs host-level teardown commands after the pipeline finishes. Cleanup runs regardless of whether the pipeline succeeded or failed, ensuring that infrastructure started during bootstrap is always torn down.
+
+### Key Differences from Bootstrap
+
+| | Bootstrap | Cleanup |
+|---|---|---|
+| **When** | Before any jobs | After all jobs (or on failure/interruption) |
+| **Error handling** | Fails fast — pipeline stops if a command fails | Best-effort — logs errors but continues through all commands |
+| **Required** | No | No (but requires bootstrap to be defined) |
+
+### How It Works
+
+1. Cleanup is registered via `defer` immediately after bootstrap succeeds
+2. This guarantees it runs on every exit path: success, job failure, or signal interruption (Ctrl+C)
+3. Each command runs sequentially with a shared timeout context
+4. If a command fails, the error is logged and the remaining commands still execute
+
+Timeout is specified as an integer representing minutes. If not provided, defaults to 5 minutes.
+
+### Example Configuration
+
+```yaml
+bootstrap:
+  run:
+    - docker compose -f docker-compose.yml up -d
+  timeout: 5
+
+cleanup:
+  run:
+    - docker compose -f docker-compose.yml down
+    - docker volume prune -f
+  timeout: 5
+```
+
+Example output:
+```
+Running cleanup with timeout 5 minutes
+Running cleanup command: docker compose -f docker-compose.yml down
+Running cleanup command: docker volume prune -f
+```
+
+## Claude Code Agent
+
+Local CI ships as a [Claude Code](https://claude.ai/code) plugin, providing an agent that can run pipelines on your behalf. This gives Claude Code the ability to validate code in real target environments — different runtimes, OS images, or with real services like databases.
+
+### Installation
+
+Requires `local-ci` to be installed on your machine ([see above](#command-line-interface)) and Docker to be running.
+
+Install the plugin
+```bash
+/plugin install local-ci@MrPuls-local-ci
+```
+
+To update the plugin after a new release:
+```bash
+/plugin marketplace update MrPuls-local-ci
+```
+
+### What the Agent Can Do
+
+- Write `.local-ci.yaml` configs tailored to the project's stack
+- Run pipelines and interpret the results
+- Validate that code builds in specific environments (e.g. different Go/Node/Python versions)
+- Spin up infrastructure via bootstrap for integration testing
+- Debug failing jobs by analyzing container output
+- Run individual jobs for fast iteration
+
+### How It Works
+
+When Claude Code determines that environment-level validation is needed, it spawns the `local-ci` agent in the background. The agent:
+
+1. Inspects the project to understand the build system and dependencies
+2. Writes or reuses a `.local-ci.yaml` config
+3. Runs the pipeline via `local-ci run`
+4. Streams and analyzes the output in real time
+5. Reports results back — which jobs passed, which failed, and why
+
+Since the agent runs in the background, Claude Code can continue working with you while the pipeline executes. Docker image pulls are cached locally, so subsequent runs are fast.
+
+### Example Workflow
+
+You ask Claude Code to verify that your Go project builds on both Go 1.21 and Go 1.22. The agent creates a config with two jobs targeting different images and runs them:
+
+```yaml
+stages:
+  - build
+
+Build-Go-1.21:
+  stage: build
+  image: golang:1.21
+  workdir: /app
+  script:
+    - go build ./...
+
+Build-Go-1.22:
+  stage: build
+  image: golang:1.22
+  workdir: /app
+  script:
+    - go build ./...
+```
+
+The agent runs the pipeline, observes the results, and reports back whether both versions compiled successfully.
+
 ## Limitations and Notes
 
 1. **Current Limitations**:
@@ -368,7 +477,6 @@ Running bootstrap command: docker compose -f docker-compose.yml up -d
 
    - Parallel job execution within stages
    - Persistent services support
-   - Cleanup block (companion to bootstrap)
    - Git branch switching for cloned repositories via `--remote` command
    - Alias support for remote repository URLs
    - List command for available remote repositories and local clones

@@ -9,6 +9,7 @@
     - [variables (global level)](#variables-global-level)
     - [remote provider (global level)](#remote-provider-global-level)
     - [bootstrap](#bootstrap)
+    - [cleanup](#cleanup)
   - [Job Configuration](#job-configuration)
     - [stage](#stage)
     - [image](#image)
@@ -111,6 +112,21 @@ Important: Bootstrap runs on the host, not inside a container.
     timeout: 5
   ```
 
+#### Cleanup
+- Required: No (requires bootstrap to be defined)
+- Type: Map with the following options:
+  - run: Array of strings (Shell commands executed on the host machine after all jobs have finished)
+  - timeout: Int (Maximum time to wait for cleanup commands to complete in minutes, defaults to 5 if not set)
+- Description: Defines host-level teardown commands that run after the pipeline finishes, regardless of whether the pipeline succeeded or failed. Intended for tearing down infrastructure started during bootstrap (e.g. stopping services via `docker compose`). Cleanup requires a bootstrap block to be defined — you can't clean up what wasn't set up.
+
+Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, cleanup is best-effort — if a command fails, the remaining commands still execute.
+- Example
+  ```yaml
+  cleanup:
+    run:
+      - docker compose -f docker-compose.yml down
+    timeout: 5
+  ```
 
 ### Job Configuration
 
@@ -255,6 +271,16 @@ stages:
 
 variables:
   GLOBAL_VAR: "shared across jobs"
+
+bootstrap:
+  run:
+    - docker compose -f docker-compose.yml up -d
+  timeout: 5
+
+cleanup:
+  run:
+    - docker compose -f docker-compose.yml down
+  timeout: 5
 
 Build:
   stage: build

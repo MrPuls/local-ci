@@ -1,0 +1,11 @@
+{
+  "name": "local-ci",
+  "description": "Run CI/CD pipelines locally using Docker containers. Validate builds, run tests in isolated environments, and spin up infrastructure — all without pushing to remote.",
+  "version": "0.0.22",
+  "author": {
+    "name": "MrPuls"
+  },
+  "repository": "https://github.com/MrPuls/local-ci",
+  "license": "MIT",
+  "agents": "./agents/"
+}
