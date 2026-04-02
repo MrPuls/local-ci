@@ -8,7 +8,7 @@
       "name": "local-ci",
       "source": ".",
       "description": "Run CI/CD pipelines locally using Docker containers. Validate builds, run tests in isolated environments, and spin up infrastructure — all without pushing to remote.",
-      "version": "0.0.22"
+      "version": "0.0.23"
     }
   ]
 }
