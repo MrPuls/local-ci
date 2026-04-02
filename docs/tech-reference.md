@@ -19,6 +19,7 @@
    - [Remote Clone and Execution](#remote-clone-and-execution)
    - [Bootstrap](#bootstrap)
    - [Cleanup](#cleanup)
+   - [Job Bootstrap and Cleanup](#job-bootstrap-and-cleanup)
 - [Claude Code Agent](#claude-code-agent)
 - [Limitations and Notes](#limitations-and-notes)
 
@@ -71,7 +72,11 @@ The tool operates in several stages:
 ### 3. Job Execution
 For each job:
 
-1. **Container Setup**:
+1. **Job Bootstrap** (if defined):
+   - Runs host-level setup commands before the container starts
+   - If a command fails, the pipeline stops
+
+2. **Container Setup**:
    - Pulls the specified Docker image
    - Creates a container with:
       - Custom working directory (defaults to "/")
@@ -79,18 +84,22 @@ For each job:
       - Cache volume mounts if specified
       - Script commands joined for sequential execution
 
-2. **File System Handling**:
+3. **File System Handling**:
    - Creates a tar archive of the project files (respecting .gitignore)
    - Copies project files into the container
 
-3. **Execution**:
+4. **Execution**:
    - Starts the container
    - Streams logs in real-time to stdout
    - Waits for container completion
 
-4. **Cleanup**:
+5. **Cleanup**:
    - Removes the container after execution
    - Preserves cache volumes for reuse in future runs
+
+6. **Job Cleanup** (if defined):
+   - Runs host-level teardown commands after the job finishes
+   - Runs regardless of whether the job succeeded or failed
 
 ## Technical Details
 
@@ -398,6 +407,60 @@ Running cleanup with timeout 5 minutes
 Running cleanup command: docker compose -f docker-compose.yml down
 Running cleanup command: docker volume prune -f
 ```
+
+## Job Bootstrap and Cleanup
+
+In addition to global bootstrap and cleanup, Local CI supports per-job bootstrap and cleanup commands. These run on the host before and after each individual job, allowing jobs to set up and tear down their own infrastructure independently.
+
+### When to Use
+
+Use job-level bootstrap/cleanup when different jobs need different infrastructure. For example, a test job might need a database while a build job does not. Rather than spinning up everything in global bootstrap, each job can manage its own dependencies.
+
+### How It Works
+
+1. Before a job's container starts, `job_bootstrap` commands run sequentially on the host
+2. The job executes in its container
+3. After the job finishes (whether it succeeded or failed), `job_cleanup` commands run on the host
+4. If job cleanup fails, the pipeline stops — leftover resources from a failed cleanup could affect subsequent jobs
+
+### Key Differences from Global Bootstrap/Cleanup
+
+| | Global Bootstrap/Cleanup | Job Bootstrap/Cleanup |
+|---|---|---|
+| **Scope** | Runs once for the entire pipeline | Runs per job that defines it |
+| **When** | Before any jobs / after all jobs | Before/after each individual job |
+| **Cleanup on failure** | Best-effort (logs errors, continues) | Fatal (stops the pipeline) |
+| **Cleanup guarantee** | Always runs via `defer` | Always runs after job execution, regardless of job success/failure |
+
+### Example Configuration
+
+```yaml
+stages:
+  - build
+  - test
+
+Build:
+  stage: build
+  image: golang:1.22
+  script:
+    - go build ./...
+
+Test:
+  stage: test
+  image: golang:1.22
+  job_bootstrap:
+    run:
+      - docker compose -f docker-compose.test.yml up -d
+    timeout: 3
+  job_cleanup:
+    run:
+      - docker compose -f docker-compose.test.yml down
+    timeout: 2
+  script:
+    - go test ./...
+```
+
+In this example, the database is only started for the Test job and torn down immediately after, keeping the Build job lightweight.
 
 ## Claude Code Agent
 

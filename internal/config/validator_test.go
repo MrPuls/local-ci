@@ -185,6 +185,93 @@ func TestValidateJob_MissingImage(t *testing.T) {
 	}
 }
 
+func TestValidateJob_JobBootstrapEmptyRun(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobBootstrap: &JobBootstrapConfig{Run: []string{}},
+	}
+	if err := v.validateJob(job); err == nil {
+		t.Error("expected error for empty job_bootstrap run")
+	}
+}
+
+func TestValidateJob_JobBootstrapNegativeTimeout(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: -1},
+	}
+	if err := v.validateJob(job); err == nil {
+		t.Error("expected error for negative job_bootstrap timeout")
+	}
+}
+
+func TestValidateJob_JobBootstrapValid(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: 5},
+	}
+	if err := v.validateJob(job); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateJob_JobCleanupRequiresBootstrap(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobCleanup: &JobCleanupConfig{Run: []string{"echo teardown"}},
+	}
+	if err := v.validateJob(job); err == nil {
+		t.Error("expected error for job_cleanup without job_bootstrap")
+	}
+}
+
+func TestValidateJob_JobCleanupEmptyRun(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
+		JobCleanup:   &JobCleanupConfig{Run: []string{}},
+	}
+	if err := v.validateJob(job); err == nil {
+		t.Error("expected error for empty job_cleanup run")
+	}
+}
+
+func TestValidateJob_JobCleanupNegativeTimeout(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
+		JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: -1},
+	}
+	if err := v.validateJob(job); err == nil {
+		t.Error("expected error for negative job_cleanup timeout")
+	}
+}
+
+func TestValidateJob_JobCleanupValid(t *testing.T) {
+	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
+	v := NewConfigValidator(cfg)
+	job := &JobConfig{
+		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
+		JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: 5},
+	}
+	if err := v.validateJob(job); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 func TestValidateJob_CacheMissingKey(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
@@ -323,6 +410,73 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "job bootstrap with empty run",
+			cfg: &Config{
+				FileName: "test.yaml",
+				Stages:   []string{"build"},
+				Jobs: []JobConfig{
+					{
+						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						JobBootstrap: &JobBootstrapConfig{Run: []string{}},
+					},
+				},
+			},
+		},
+		{
+			name: "job bootstrap negative timeout",
+			cfg: &Config{
+				FileName: "test.yaml",
+				Stages:   []string{"build"},
+				Jobs: []JobConfig{
+					{
+						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: -1},
+					},
+				},
+			},
+		},
+		{
+			name: "job cleanup without job bootstrap",
+			cfg: &Config{
+				FileName: "test.yaml",
+				Stages:   []string{"build"},
+				Jobs: []JobConfig{
+					{
+						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						JobCleanup: &JobCleanupConfig{Run: []string{"echo teardown"}},
+					},
+				},
+			},
+		},
+		{
+			name: "job cleanup with empty run",
+			cfg: &Config{
+				FileName: "test.yaml",
+				Stages:   []string{"build"},
+				Jobs: []JobConfig{
+					{
+						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
+						JobCleanup:   &JobCleanupConfig{Run: []string{}},
+					},
+				},
+			},
+		},
+		{
+			name: "job cleanup negative timeout",
+			cfg: &Config{
+				FileName: "test.yaml",
+				Stages:   []string{"build"},
+				Jobs: []JobConfig{
+					{
+						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
+						JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: -1},
+					},
+				},
+			},
+		},
+		{
 			name: "cache missing key",
 			cfg: &Config{
 				FileName: "test.yaml",
@@ -360,6 +514,32 @@ func TestValidate_FullPipeline(t *testing.T) {
 		},
 		Jobs: []JobConfig{
 			{Name: "Build", Stage: "build", Image: "golang:1.21", Script: []string{"go build"}},
+			{Name: "Test", Stage: "test", Image: "golang:1.21", Script: []string{"go test ./..."}},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidate_FullPipelineWithJobBootstrapCleanup(t *testing.T) {
+	cfg := &Config{
+		FileName: "test.yaml",
+		Stages:   []string{"build", "test"},
+		Bootstrap: &BootstrapConfig{
+			Run:     []string{"docker compose up -d"},
+			Timeout: 5,
+		},
+		Cleanup: &CleanupConfig{
+			Run:     []string{"docker compose down"},
+			Timeout: 5,
+		},
+		Jobs: []JobConfig{
+			{
+				Name: "Build", Stage: "build", Image: "golang:1.21", Script: []string{"go build"},
+				JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: 3},
+				JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: 2},
+			},
 			{Name: "Test", Stage: "test", Image: "golang:1.21", Script: []string{"go test ./..."}},
 		},
 	}

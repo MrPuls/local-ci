@@ -95,6 +95,135 @@ func TestPipeline_EmptyJobs(t *testing.T) {
 	}
 }
 
+func TestPipeline_JobBootstrapRunsBeforeJob(t *testing.T) {
+	mock := &mockExecutor{}
+	jobs := []config.JobConfig{
+		{
+			Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo build"},
+			JobBootstrap: &config.JobBootstrapConfig{Run: []string{"true"}, Timeout: 1},
+		},
+	}
+	p := NewPipeline(mock, []string{"build"}, jobs)
+
+	if err := p.Run(context.Background()); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(mock.executed) != 1 || mock.executed[0] != "Build" {
+		t.Errorf("expected Build to execute, got %v", mock.executed)
+	}
+}
+
+func TestPipeline_JobBootstrapFailureStopsPipeline(t *testing.T) {
+	mock := &mockExecutor{}
+	jobs := []config.JobConfig{
+		{
+			Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo build"},
+			JobBootstrap: &config.JobBootstrapConfig{Run: []string{"false"}, Timeout: 1},
+		},
+		{
+			Name: "Test", Stage: "test", Image: "alpine", Script: []string{"echo test"},
+		},
+	}
+	p := NewPipeline(mock, []string{"build", "test"}, jobs)
+
+	err := p.Run(context.Background())
+	if err == nil {
+		t.Error("expected error when job bootstrap fails")
+	}
+	if len(mock.executed) != 0 {
+		t.Errorf("expected no jobs to execute after bootstrap failure, got %v", mock.executed)
+	}
+}
+
+func TestPipeline_JobCleanupRunsAfterJob(t *testing.T) {
+	mock := &mockExecutor{}
+	jobs := []config.JobConfig{
+		{
+			Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo build"},
+			JobCleanup: &config.JobCleanupConfig{Run: []string{"true"}, Timeout: 1},
+		},
+	}
+	p := NewPipeline(mock, []string{"build"}, jobs)
+
+	if err := p.Run(context.Background()); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(mock.executed) != 1 || mock.executed[0] != "Build" {
+		t.Errorf("expected Build to execute, got %v", mock.executed)
+	}
+}
+
+func TestPipeline_JobCleanupRunsOnJobFailure(t *testing.T) {
+	mock := &mockExecutor{failOn: "Build"}
+	jobs := []config.JobConfig{
+		{
+			Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo build"},
+			JobCleanup: &config.JobCleanupConfig{Run: []string{"true"}, Timeout: 1},
+		},
+	}
+	p := NewPipeline(mock, []string{"build"}, jobs)
+
+	err := p.Run(context.Background())
+	if err == nil {
+		t.Error("expected error when job fails")
+	}
+	// The key assertion: no panic and the error is about the job failure, not cleanup.
+	// Cleanup ran successfully (true), so the error should be about the job itself.
+	if err.Error() != "Job Build failed: job Build failed" {
+		t.Errorf("expected job failure error, got: %v", err)
+	}
+}
+
+func TestPipeline_JobCleanupFailureStopsPipeline(t *testing.T) {
+	mock := &mockExecutor{}
+	jobs := []config.JobConfig{
+		{
+			Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo build"},
+			JobCleanup: &config.JobCleanupConfig{Run: []string{"false"}, Timeout: 1},
+		},
+		{
+			Name: "Test", Stage: "test", Image: "alpine", Script: []string{"echo test"},
+		},
+	}
+	p := NewPipeline(mock, []string{"build", "test"}, jobs)
+
+	err := p.Run(context.Background())
+	if err == nil {
+		t.Error("expected error when job cleanup fails")
+	}
+	// Build executed successfully, but cleanup failed, so Test should not run
+	if len(mock.executed) != 1 || mock.executed[0] != "Build" {
+		t.Errorf("expected only Build to execute, got %v", mock.executed)
+	}
+}
+
+func TestPipeline_JobBootstrapAndCleanup(t *testing.T) {
+	mock := &mockExecutor{}
+	jobs := []config.JobConfig{
+		{
+			Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo build"},
+			JobBootstrap: &config.JobBootstrapConfig{Run: []string{"true"}, Timeout: 1},
+			JobCleanup:   &config.JobCleanupConfig{Run: []string{"true"}, Timeout: 1},
+		},
+		{
+			Name: "Test", Stage: "test", Image: "alpine", Script: []string{"echo test"},
+			JobBootstrap: &config.JobBootstrapConfig{Run: []string{"true"}, Timeout: 1},
+			JobCleanup:   &config.JobCleanupConfig{Run: []string{"true"}, Timeout: 1},
+		},
+	}
+	p := NewPipeline(mock, []string{"build", "test"}, jobs)
+
+	if err := p.Run(context.Background()); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(mock.executed) != 2 {
+		t.Fatalf("expected 2 jobs executed, got %d", len(mock.executed))
+	}
+	if mock.executed[0] != "Build" || mock.executed[1] != "Test" {
+		t.Errorf("unexpected execution order: %v", mock.executed)
+	}
+}
+
 func TestPipeline_ContextCancelled(t *testing.T) {
 	mock := &mockExecutor{}
 	ctx, cancel := context.WithCancel(context.Background())

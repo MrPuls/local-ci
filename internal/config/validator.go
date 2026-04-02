@@ -124,6 +124,30 @@ func (v *ConfigValidator) validateJob(job *JobConfig) error {
 	if job.Image == "" {
 		return fmt.Errorf("[YAML] Image is empty or undefined in block \"%s\"\n", job.Name)
 	}
+	if job.JobBootstrap != nil {
+		if len(job.JobBootstrap.Run) == 0 {
+			return fmt.Errorf("[YAML] \"%s\" block has an empty job_bootstrap 'run' field. "+
+				"Please add at least one script to run.", job.Name)
+		}
+		if job.JobBootstrap.Timeout < 0 {
+			return fmt.Errorf("[YAML] \"%s\" block has a negative job_bootstrap 'timeout' field. "+
+				"Please set a positive timeout value.", job.Name)
+		}
+	}
+	if job.JobCleanup != nil {
+		if job.JobBootstrap == nil {
+			return fmt.Errorf("[YAML] \"%s\" block has a job_cleanup without a job_bootstrap. "+
+				"Job cleanup requires job bootstrap to be defined.", job.Name)
+		}
+		if len(job.JobCleanup.Run) == 0 {
+			return fmt.Errorf("[YAML] \"%s\" block has an empty job_cleanup 'run' field. "+
+				"Please add at least one script to run.", job.Name)
+		}
+		if job.JobCleanup.Timeout < 0 {
+			return fmt.Errorf("[YAML] \"%s\" block has a negative job_cleanup 'timeout' field. "+
+				"Please set a positive timeout value.", job.Name)
+		}
+	}
 	if job.Cache != nil {
 		if job.Cache.Key == "" {
 			return fmt.Errorf("[YAML] Cache must have a key defined in block \"%s\"\n", job.Name)

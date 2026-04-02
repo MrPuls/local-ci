@@ -93,6 +93,20 @@ cleanup:
   timeout: 5
 ```
 
+#### Per-job bootstrap and cleanup
+Jobs can define their own `job_bootstrap` and `job_cleanup` for job-specific infrastructure. Job cleanup runs regardless of job success/failure. Job cleanup requires job bootstrap to be defined. Unlike global cleanup, job cleanup failure is fatal and stops the pipeline.
+```yaml
+JobName:
+  job_bootstrap:
+    run:
+      - docker compose -f docker-compose.test.yml up -d
+    timeout: 3
+  job_cleanup:
+    run:
+      - docker compose -f docker-compose.test.yml down
+    timeout: 2
+```
+
 #### remote_provider (optional)
 Fetches environment variables from a GitLab project and makes them available as global variables. Also enables pulling images from private GitLab registries.
 ```yaml
@@ -121,6 +135,14 @@ JobName:
     key: go-modules         # unique cache identifier
     paths:
       - /go/pkg/mod         # paths persisted as Docker volumes
+  job_bootstrap:            # optional per-job host setup
+    run:
+      - setup_command
+    timeout: 5
+  job_cleanup:              # optional per-job host teardown (requires job_bootstrap)
+    run:
+      - teardown_command
+    timeout: 5
   script:
     - go mod download
     - go build -o /app/bin ./...
@@ -165,7 +187,8 @@ When creating a `.local-ci.yaml`:
 - Choose the Docker image that matches the target environment (e.g. `golang:1.22`, `node:20-alpine`, `python:3.12`)
 - Set `workdir` to where the project code should live inside the container (files are copied there automatically)
 - Use `cache` for dependency directories to avoid re-downloading on subsequent runs
-- Use `bootstrap`/`cleanup` only when jobs need external services (databases, APIs)
+- Use global `bootstrap`/`cleanup` when all jobs share the same infrastructure
+- Use `job_bootstrap`/`job_cleanup` when only specific jobs need their own infrastructure
 - Use `host_access: true` when containers need to reach services running on the host
 
 ## Execution Behavior
@@ -175,8 +198,9 @@ When creating a `.local-ci.yaml`:
 - If any job fails, the pipeline stops (remaining jobs are skipped)
 - Containers are automatically cleaned up after execution
 - Cache volumes persist across runs for faster subsequent executions
-- Bootstrap commands fail fast (pipeline stops on error)
-- Cleanup commands are best-effort (errors are logged but all commands run)
+- Global bootstrap commands fail fast (pipeline stops on error)
+- Global cleanup commands are best-effort (errors are logged but all commands run)
+- Job bootstrap/cleanup run per-job on the host; job cleanup failure is fatal
 - The pipeline has a 1-hour timeout
 - Ctrl+C triggers graceful shutdown with container cleanup
 

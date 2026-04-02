@@ -35,15 +35,27 @@ type CleanupConfig struct {
 	Timeout int      `yaml:"timeout,omitempty"`
 }
 
+type JobBootstrapConfig struct {
+	Run     []string `yaml:"run"`
+	Timeout int      `yaml:"timeout,omitempty"`
+}
+
+type JobCleanupConfig struct {
+	Run     []string `yaml:"run"`
+	Timeout int      `yaml:"timeout,omitempty"`
+}
+
 type JobConfig struct {
-	Name      string            `yaml:"-"`
-	Image     string            `yaml:"image"`
-	Script    []string          `yaml:"script"`
-	Stage     string            `yaml:"stage"`
-	Workdir   string            `yaml:"workdir,omitempty"`
-	Variables map[string]string `yaml:"variables,omitempty"`
-	Cache     *CacheConfig      `yaml:"cache,omitempty"`
-	Network   *NetworkConfig    `yaml:"network,omitempty"`
+	Name         string              `yaml:"-"`
+	Image        string              `yaml:"image"`
+	Script       []string            `yaml:"script"`
+	Stage        string              `yaml:"stage"`
+	Workdir      string              `yaml:"workdir,omitempty"`
+	Variables    map[string]string   `yaml:"variables,omitempty"`
+	Cache        *CacheConfig        `yaml:"cache,omitempty"`
+	Network      *NetworkConfig      `yaml:"network,omitempty"`
+	JobBootstrap *JobBootstrapConfig `yaml:"job_bootstrap,omitempty"`
+	JobCleanup   *JobCleanupConfig   `yaml:"job_cleanup,omitempty"`
 }
 
 type Config struct {
@@ -176,7 +188,7 @@ func (c *Config) LoadConfig() error {
 	err = yaml.Unmarshal(yamlFile, c)
 	if err != nil {
 		return fmt.Errorf(
-			"error reading config file, please make sure that all stages are correctly defined\n %w", err)
+			"[Config] error reading config file, please make sure that all stages are correctly defined\n %w", err)
 	}
 	return nil
 }

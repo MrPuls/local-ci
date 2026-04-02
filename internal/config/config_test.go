@@ -291,6 +291,80 @@ Build:
 	}
 }
 
+func TestLoadConfig_JobBootstrapAndCleanup(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+Build:
+  stage: build
+  image: alpine
+  job_bootstrap:
+    run:
+      - echo "setting up"
+    timeout: 3
+  job_cleanup:
+    run:
+      - echo "tearing down"
+    timeout: 2
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	job := cfg.Jobs[0]
+	if job.JobBootstrap == nil {
+		t.Fatal("expected job_bootstrap to be parsed")
+	}
+	if len(job.JobBootstrap.Run) != 1 || job.JobBootstrap.Run[0] != "echo \"setting up\"" {
+		t.Errorf("unexpected job_bootstrap run: %v", job.JobBootstrap.Run)
+	}
+	if job.JobBootstrap.Timeout != 3 {
+		t.Errorf("expected job_bootstrap timeout 3, got %d", job.JobBootstrap.Timeout)
+	}
+
+	if job.JobCleanup == nil {
+		t.Fatal("expected job_cleanup to be parsed")
+	}
+	if len(job.JobCleanup.Run) != 1 || job.JobCleanup.Run[0] != "echo \"tearing down\"" {
+		t.Errorf("unexpected job_cleanup run: %v", job.JobCleanup.Run)
+	}
+	if job.JobCleanup.Timeout != 2 {
+		t.Errorf("expected job_cleanup timeout 2, got %d", job.JobCleanup.Timeout)
+	}
+}
+
+func TestLoadConfig_JobBootstrapWithoutCleanup(t *testing.T) {
+	path := writeTestYAML(t, `
+stages:
+  - build
+
+Build:
+  stage: build
+  image: alpine
+  job_bootstrap:
+    run:
+      - echo "setup"
+  script:
+    - echo hi
+`)
+	cfg := NewConfig(path)
+	if err := cfg.LoadConfig(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	job := cfg.Jobs[0]
+	if job.JobBootstrap == nil {
+		t.Fatal("expected job_bootstrap to be parsed")
+	}
+	if job.JobCleanup != nil {
+		t.Error("expected job_cleanup to be nil")
+	}
+}
+
 func TestLoadConfig_NonExistentFile(t *testing.T) {
 	cfg := NewConfig("/nonexistent/path.yaml")
 	if err := cfg.LoadConfig(); err == nil {

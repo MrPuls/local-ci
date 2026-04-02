@@ -80,10 +80,10 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 		cfg.GlobalVariables = vars
 	}
 
-	if err := cmd.RunBootstrap(cfg.Bootstrap); err != nil {
+	if err := cmd.RunGlobalBootstrap(cfg.Bootstrap); err != nil {
 		return err
 	}
-	defer cmd.RunCleanup(cfg.Cleanup)
+	defer cmd.RunGlobalCleanup(cfg.Cleanup)
 
 	runner := NewRunner(ctx, cfg)
 	prepErr := runner.PrepareJobConfigs(
