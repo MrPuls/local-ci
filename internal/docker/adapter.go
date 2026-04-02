@@ -106,7 +106,7 @@ func (a *configAdapter) getNetworkMode(jobNetwork *config.NetworkConfig) contain
 	}
 	log.Println("[Docker] Resolving network mode")
 	var networkMode container.NetworkMode
-	if jobNetwork.HostAccess {
+	if jobNetwork.HostMode {
 		networkMode = "host"
 	}
 	return networkMode
@@ -118,7 +118,7 @@ func (a *configAdapter) getExtraHosts(jobNetwork *config.NetworkConfig) []string
 	}
 	log.Println("[Docker] Resolving extra hosts")
 	var extraHosts []string
-	if jobNetwork.HostMode {
+	if jobNetwork.HostAccess {
 		extraHosts = append(extraHosts, "host.docker.internal:host-gateway")
 	}
 	return extraHosts

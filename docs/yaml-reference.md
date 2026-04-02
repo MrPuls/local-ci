@@ -9,6 +9,7 @@
     - [variables (global level)](#variables-global-level)
     - [remote provider (global level)](#remote-provider-global-level)
     - [bootstrap](#bootstrap)
+    - [cleanup](#cleanup)
   - [Job Configuration](#job-configuration)
     - [stage](#stage)
     - [image](#image)
@@ -17,6 +18,8 @@
     - [network](#network)
     - [script](#script)
     - [cache](#cache)
+    - [job_bootstrap](#job_bootstrap)
+    - [job_cleanup](#job_cleanup)
 - [Variable Handling](#variable-handling)
 - [Network Configuration](#network-configuration)
 - [Complete Example](#complete-example)
@@ -51,6 +54,14 @@ job_name:
     key: cache-key
     paths:
       - /cache/path
+  job_bootstrap:   # Optional per-job host setup (requires job_cleanup if cleanup needed)
+    run:
+      - setup_command
+    timeout: 5
+  job_cleanup:     # Optional per-job host teardown (requires job_bootstrap)
+    run:
+      - teardown_command
+    timeout: 5
   script:
     - command1
     - command2
@@ -111,6 +122,21 @@ Important: Bootstrap runs on the host, not inside a container.
     timeout: 5
   ```
 
+#### Cleanup
+- Required: No (requires bootstrap to be defined)
+- Type: Map with the following options:
+  - run: Array of strings (Shell commands executed on the host machine after all jobs have finished)
+  - timeout: Int (Maximum time to wait for cleanup commands to complete in minutes, defaults to 5 if not set)
+- Description: Defines host-level teardown commands that run after the pipeline finishes, regardless of whether the pipeline succeeded or failed. Intended for tearing down infrastructure started during bootstrap (e.g. stopping services via `docker compose`). Cleanup requires a bootstrap block to be defined — you can't clean up what wasn't set up.
+
+Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, cleanup is best-effort — if a command fails, the remaining commands still execute.
+- Example
+  ```yaml
+  cleanup:
+    run:
+      - docker compose -f docker-compose.yml down
+    timeout: 5
+  ```
 
 ### Job Configuration
 
@@ -205,6 +231,52 @@ Important: Bootstrap runs on the host, not inside a container.
         - "/build"          # Build artifacts
   ```
 
+#### job_bootstrap
+- Required: No
+- Type: Map with the following options:
+  - run: Array of strings (Shell commands executed on the host machine before the job starts)
+  - timeout: Int (Maximum time to wait for bootstrap commands to complete in minutes, defaults to 5 if not set)
+- Description: Defines host-level setup commands that run before this specific job's container is started. Unlike global bootstrap which runs once before the entire pipeline, job bootstrap runs before each individual job that defines it. If a job bootstrap command fails, the pipeline stops and the job does not execute.
+
+Important: Job bootstrap runs on the host, not inside a container.
+- Example
+  ```yaml
+  Build:
+    stage: build
+    image: alpine
+    job_bootstrap:
+      run:
+        - docker compose -f docker-compose.test.yml up -d
+      timeout: 3
+    script:
+      - echo "running tests"
+  ```
+
+#### job_cleanup
+- Required: No (requires job_bootstrap to be defined)
+- Type: Map with the following options:
+  - run: Array of strings (Shell commands executed on the host machine after the job finishes)
+  - timeout: Int (Maximum time to wait for cleanup commands to complete in minutes, defaults to 5 if not set)
+- Description: Defines host-level teardown commands that run after this specific job finishes. Job cleanup runs regardless of whether the job succeeded or failed, ensuring that infrastructure started during job bootstrap is always torn down. If job cleanup fails, the pipeline stops — unlike global cleanup, job cleanup failure is treated as fatal because leftover resources could affect subsequent jobs.
+
+Important: Job cleanup runs on the host, not inside a container. Requires job_bootstrap to be defined — you can't clean up what wasn't set up.
+- Example
+  ```yaml
+  Build:
+    stage: build
+    image: alpine
+    job_bootstrap:
+      run:
+        - docker compose -f docker-compose.test.yml up -d
+      timeout: 3
+    job_cleanup:
+      run:
+        - docker compose -f docker-compose.test.yml down
+      timeout: 2
+    script:
+      - echo "running tests"
+  ```
+
 ## Variable Handling
 
 Global variables and job-specific variables are merged, with job-specific variables taking precedence:
@@ -256,6 +328,16 @@ stages:
 variables:
   GLOBAL_VAR: "shared across jobs"
 
+bootstrap:
+  run:
+    - docker compose -f docker-compose.yml up -d
+  timeout: 5
+
+cleanup:
+  run:
+    - docker compose -f docker-compose.yml down
+  timeout: 5
+
 Build:
   stage: build
   image: node:16
@@ -280,6 +362,14 @@ Test:
     key: node-modules
     paths:
       - /app/node_modules
+  job_bootstrap:
+    run:
+      - docker compose -f docker-compose.test.yml up -d
+    timeout: 3
+  job_cleanup:
+    run:
+      - docker compose -f docker-compose.test.yml down
+    timeout: 2
   script:
     - npm test
     - curl http://host.docker.internal:3000/health

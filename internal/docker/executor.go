@@ -45,7 +45,7 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 	defer func(reader io.ReadCloser) {
 		err := reader.Close()
 		if err != nil {
-			log.Printf("Error closing image pull reader: %v", err)
+			log.Printf("[Docker] Error closing image pull reader: %v", err)
 		}
 	}(reader)
 
@@ -55,8 +55,8 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 		return readerErr
 	}
 
-	log.Println("Image is pulled...")
-	log.Println("Start container creation...")
+	log.Println("[Docker] Image is pulled...")
+	log.Println("[Docker] Start container creation...")
 	containerResp, createErr := cm.CreateContainer(ctx, job)
 	if createErr != nil {
 		return createErr
@@ -65,27 +65,27 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 	e.containerID = containerResp.ID
 
 	var b bytes.Buffer
-	log.Println("Trying to create a fs tar...")
+	log.Println("[Docker] Trying to create a fs tar...")
 	fsErr := archive.CreateFSTar(wd, &b)
 	if fsErr != nil {
 		return fsErr
 	}
 
-	log.Println("Trying to copy files to container...")
+	log.Println("[Docker] Trying to copy files to container...")
 	// options could be switched to adapter type if needed more customization
 	copyErr := cm.CopyToContainer(ctx, e.containerID, job.Workdir, &b, container.CopyToContainerOptions{})
 	if copyErr != nil {
 		return copyErr
 	}
 
-	log.Println("Attaching logger to container...")
+	log.Println("[Docker] Attaching logger to container...")
 	logs, logErr := cm.AttachLogger(ctx, e.containerID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
 	if logErr != nil {
 		return logErr
 	}
 	defer logs.Close()
 
-	log.Println("Trying to start a container...")
+	log.Println("[Docker] Trying to start a container...")
 	if startErr := cm.StartContainer(ctx, e.containerID, container.StartOptions{}); startErr != nil {
 		return startErr
 	}
@@ -95,7 +95,7 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 		return stdErr
 	}
 
-	log.Println("Waiting for container to finish...")
+	log.Println("[Docker] Waiting for container to finish...")
 	statusCh, errCh := cm.WaitForContainer(ctx, e.containerID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
@@ -105,13 +105,13 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 	case <-statusCh:
 	}
 
-	log.Println("All done!")
-	log.Println("Starting cleanup...")
+	log.Println("[Docker] All done!")
+	log.Println("[Docker] Starting cleanup...")
 	return nil
 }
 
 func (e *Executor) Cleanup(ctx context.Context) error {
 	cm := NewContainerManager(e.client, e.adapter)
-	log.Println("Cleaning up container...")
+	log.Println("[Docker] Cleaning up container...")
 	return cm.RemoveContainer(ctx, e.containerID, container.RemoveOptions{})
 }

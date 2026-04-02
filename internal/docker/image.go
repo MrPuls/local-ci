@@ -26,7 +26,7 @@ func NewImageManager(cli *client.Client, adapter ConfigAdapter) *ImageManager {
 }
 
 func (i *ImageManager) PullImage(ctx context.Context, image string, options image.PullOptions) (io.ReadCloser, error) {
-	log.Printf("Pulling image %q...", image)
+	log.Printf("[Docker] Pulling image %q...", image)
 	hostname := i.adapter.ToImageHostConfig(image)
 	if hostname != "" {
 		configFile := config.LoadDefaultConfigFile(os.Stderr)

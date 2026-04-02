@@ -17,6 +17,9 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Job-based pipeline execution
 - GitLab utils
 - Bootstrap scripts
+- Cleanup scripts (companion to bootstrap)
+- Per-job bootstrap and cleanup scripts
+- Claude Code agent plugin
 
 ## Installation
 
@@ -157,10 +160,25 @@ job_name:
       - another/path
 ```
 
+## Claude Code Agent
+
+Local CI ships as a [Claude Code](https://claude.ai/code) plugin. Once installed, Claude Code can autonomously write pipeline configs, run them, and validate your code in real Docker environments.
+
+Install the plugin
+
+```bash
+/plugin marketplace add MrPuls/local-ci
+
+/plugin install local-ci@MrPuls-local-ci
+```
+
+See the [Technical Reference](docs/tech-reference.md#claude-code-agent) for details.
+
 ## Documentation
 
 - [YAML Configuration Reference](docs/yaml-reference.md)
 - [Technical Reference](docs/tech-reference.md)
+- [Claude Code Agent](docs/agent.md)
 
 ## Contributing
 

@@ -3,11 +3,9 @@ package config
 import (
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"slices"
 
-	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -32,15 +30,32 @@ type BootstrapConfig struct {
 	Timeout int      `yaml:"timeout,omitempty"`
 }
 
+type CleanupConfig struct {
+	Run     []string `yaml:"run"`
+	Timeout int      `yaml:"timeout,omitempty"`
+}
+
+type JobBootstrapConfig struct {
+	Run     []string `yaml:"run"`
+	Timeout int      `yaml:"timeout,omitempty"`
+}
+
+type JobCleanupConfig struct {
+	Run     []string `yaml:"run"`
+	Timeout int      `yaml:"timeout,omitempty"`
+}
+
 type JobConfig struct {
-	Name      string            `yaml:"-"`
-	Image     string            `yaml:"image"`
-	Script    []string          `yaml:"script"`
-	Stage     string            `yaml:"stage"`
-	Workdir   string            `yaml:"workdir,omitempty"`
-	Variables map[string]string `yaml:"variables,omitempty"`
-	Cache     *CacheConfig      `yaml:"cache,omitempty"`
-	Network   *NetworkConfig    `yaml:"network,omitempty"`
+	Name         string              `yaml:"-"`
+	Image        string              `yaml:"image"`
+	Script       []string            `yaml:"script"`
+	Stage        string              `yaml:"stage"`
+	Workdir      string              `yaml:"workdir,omitempty"`
+	Variables    map[string]string   `yaml:"variables,omitempty"`
+	Cache        *CacheConfig        `yaml:"cache,omitempty"`
+	Network      *NetworkConfig      `yaml:"network,omitempty"`
+	JobBootstrap *JobBootstrapConfig `yaml:"job_bootstrap,omitempty"`
+	JobCleanup   *JobCleanupConfig   `yaml:"job_cleanup,omitempty"`
 }
 
 type Config struct {
@@ -51,6 +66,7 @@ type Config struct {
 	RemoteProvider  *RemoteProvider   `yaml:"remote_provider,omitempty"`
 	CLIVariables    map[string]string `yaml:"-"`
 	Bootstrap       *BootstrapConfig  `yaml:"bootstrap,omitempty"`
+	Cleanup         *CleanupConfig    `yaml:"cleanup,omitempty"`
 }
 
 func NewConfig(file string) *Config {
@@ -61,7 +77,7 @@ func NewConfig(file string) *Config {
 
 func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	type Alias Config
-	nonJobFields := []string{"stages", "bootstrap", "variables", "remote_provider"}
+	nonJobFields := []string{"stages", "bootstrap", "cleanup", "variables", "remote_provider"}
 	alias := (*Alias)(c) // to avoid recursion
 
 	var raw map[string]any
@@ -90,6 +106,21 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 		}
 	}
 
+	if cleanup, ok := raw["cleanup"].(map[string]any); ok {
+		alias.Cleanup = &CleanupConfig{
+			Timeout: 0,
+			Run:     []string{},
+		}
+
+		if timeout, ok := cleanup["timeout"]; ok {
+			alias.Cleanup.Timeout = timeout.(int)
+		}
+
+		for _, cmd := range cleanup["run"].([]any) {
+			alias.Cleanup.Run = append(alias.Cleanup.Run, cmd.(string))
+		}
+	}
+
 	if variables, ok := raw["variables"].(map[string]any); ok {
 		log.Println("Collecting global variables...")
 		alias.GlobalVariables = make(map[string]string)
@@ -99,22 +130,12 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	if provider, ok := raw["remote_provider"].(map[string]any); ok {
-		log.Println("Remote provider found, proceeding to fetch variables for GitLab project....")
+		log.Println("Remote provider found, variables will be fetched from GitLab project...")
 		alias.RemoteProvider = &RemoteProvider{
 			Url:       provider["url"].(string),
 			ProjectId: provider["project_id"].(int),
 			Token:     provider["access_token"].(string),
 		}
-		options := gitlab.GitlabOptions{
-			Url:       alias.RemoteProvider.Url,
-			Token:     alias.RemoteProvider.Token,
-			ProjectId: alias.RemoteProvider.ProjectId,
-		}
-		gtl := gitlab.NewGitLabUtil(&options)
-		vars := gtl.GetRemoteVariables()
-		// merge remote variables into global variables, global variables take precedence
-		maps.Copy(vars, alias.GlobalVariables)
-		alias.GlobalVariables = vars
 	}
 
 	if node.Kind == yaml.MappingNode {
@@ -140,6 +161,9 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 			job.Name = key
 
 			// local variables take precedence
+			if job.Variables == nil && len(alias.GlobalVariables) > 0 {
+				job.Variables = make(map[string]string)
+			}
 			for k, v := range alias.GlobalVariables {
 				if _, ok := job.Variables[k]; !ok {
 					job.Variables[k] = v
@@ -164,7 +188,7 @@ func (c *Config) LoadConfig() error {
 	err = yaml.Unmarshal(yamlFile, c)
 	if err != nil {
 		return fmt.Errorf(
-			"error reading config file, please make sure that all stages are correctly defined\n %w", err)
+			"[Config] error reading config file, please make sure that all stages are correctly defined\n %w", err)
 	}
 	return nil
 }

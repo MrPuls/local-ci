@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	version    = "0.0.22"
+	version    = "0.0.23"
 	configFile string
 	jobs       []string
 	stages     []string
