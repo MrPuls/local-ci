@@ -160,15 +160,6 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 
 			job.Name = key
 
-			// local variables take precedence
-			if job.Variables == nil && len(alias.GlobalVariables) > 0 {
-				job.Variables = make(map[string]string)
-			}
-			for k, v := range alias.GlobalVariables {
-				if _, ok := job.Variables[k]; !ok {
-					job.Variables[k] = v
-				}
-			}
 			// Workdir default value setup
 			if job.Workdir == "" {
 				job.Workdir = "/"

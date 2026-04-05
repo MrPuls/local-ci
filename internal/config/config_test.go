@@ -50,41 +50,6 @@ Test:
 	}
 }
 
-func TestLoadConfig_GlobalVariablesMergedIntoJobs(t *testing.T) {
-	path := writeTestYAML(t, `
-stages:
-  - build
-
-variables:
-  FOO: "global"
-  BAR: "global"
-
-Build:
-  stage: build
-  image: alpine
-  variables:
-    FOO: "overridden"
-  script:
-    - echo hi
-`)
-	cfg := NewConfig(path)
-	if err := cfg.LoadConfig(); err != nil {
-		t.Fatalf("failed to load config: %v", err)
-	}
-
-	if len(cfg.Jobs) != 1 {
-		t.Fatalf("expected 1 job, got %d", len(cfg.Jobs))
-	}
-
-	job := cfg.Jobs[0]
-	if job.Variables["FOO"] != "overridden" {
-		t.Errorf("expected FOO to be overridden, got %q", job.Variables["FOO"])
-	}
-	if job.Variables["BAR"] != "global" {
-		t.Errorf("expected BAR to be inherited from global, got %q", job.Variables["BAR"])
-	}
-}
-
 func TestLoadConfig_DefaultWorkdir(t *testing.T) {
 	path := writeTestYAML(t, `
 stages:

@@ -24,6 +24,7 @@ type Runner struct {
 type RunnerOptions struct {
 	jobNames []string
 	stages   []string
+	env      map[string]string
 }
 
 func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
@@ -113,6 +114,18 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 
 func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	log.Println("Preparing jobs...")
+	log.Println("Populating jobs with global variables...")
+	for i, job := range r.cfg.Jobs {
+		if job.Variables == nil {
+			r.cfg.Jobs[i].Variables = make(map[string]string)
+		}
+		//local variables take precedence over global variables
+		for k, v := range r.cfg.GlobalVariables {
+			if _, ok := job.Variables[k]; !ok {
+				r.cfg.Jobs[i].Variables[k] = v
+			}
+		}
+	}
 
 	// TODO: This feels bad man...
 
