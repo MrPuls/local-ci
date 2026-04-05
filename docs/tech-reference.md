@@ -357,6 +357,10 @@ This will `git clone` the repositiry to `~/.local/shared/local-ci/<repository_na
 
 Bootstrap runs host-level setup commands before any job containers are started. Each command is executed sequentially on the host machine with a shared timeout context — if the timeout is exceeded, remaining commands are cancelled and the pipeline does not proceed.
 
+Global variables are passed to the execution command alongside with os.Environ() for some additional QoL.
+
+For job level bootstrap - job variables are passed instead
+
 Timeout is specified as an integer representing minutes. If not provided, defaults to 5 minutes.
 
 Example output:
@@ -368,6 +372,8 @@ Running bootstrap command: docker compose -f docker-compose.yml up -d
 ## Cleanup
 
 Cleanup is the counterpart to bootstrap — it runs host-level teardown commands after the pipeline finishes. Cleanup runs regardless of whether the pipeline succeeded or failed, ensuring that infrastructure started during bootstrap is always torn down.
+
+Shares the same variable passing logic with bootstrap.
 
 ### Key Differences from Bootstrap
 

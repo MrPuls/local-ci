@@ -15,7 +15,7 @@ import (
 // May change this in the future to some more elegant approach, but now would like to keep it simple and
 // open to possible changes on different levels
 
-func RunGlobalCleanup(cfg *config.CleanupConfig) {
+func RunGlobalCleanup(cfg *config.CleanupConfig, env map[string]string) {
 	if cfg == nil {
 		log.Println("[Cleanup] No global cleanup config provided, skipping")
 		return
@@ -33,6 +33,10 @@ func RunGlobalCleanup(cfg *config.CleanupConfig) {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
+		command.Env = os.Environ()
+		for k, v := range env {
+			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
+		}
 		log.Printf("[Cleanup] Running command: %s\n", cmd)
 		if err := command.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
@@ -44,7 +48,7 @@ func RunGlobalCleanup(cfg *config.CleanupConfig) {
 	log.Println("[Cleanup] Global cleanup completed successfully")
 }
 
-func RunJobCleanup(cfg *config.JobCleanupConfig) error {
+func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string) error {
 	if cfg == nil {
 		log.Println("[Cleanup] No job cleanup config provided, skipping")
 		return nil
@@ -62,6 +66,10 @@ func RunJobCleanup(cfg *config.JobCleanupConfig) error {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
+		command.Env = os.Environ()
+		for k, v := range env {
+			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
+		}
 		log.Printf("[Cleanup] Running command: %s\n", cmd)
 		if err := command.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {

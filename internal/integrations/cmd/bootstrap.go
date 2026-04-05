@@ -15,7 +15,7 @@ import (
 // May change this in the future to some more elegant approach, but now would like to keep it simple and
 // open to possible changes on different levels
 
-func RunGlobalBootstrap(cfg *config.BootstrapConfig) error {
+func RunGlobalBootstrap(cfg *config.BootstrapConfig, env map[string]string) error {
 	if cfg == nil {
 		log.Println("[Bootstrap] No global bootstrap config provided, skipping")
 		return nil
@@ -33,6 +33,11 @@ func RunGlobalBootstrap(cfg *config.BootstrapConfig) error {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
+		command.Env = os.Environ()
+		for k, v := range env {
+			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
+		}
+
 		log.Printf("[Bootstrap] Running command: %s\n", cmd)
 		if err := command.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
@@ -45,7 +50,7 @@ func RunGlobalBootstrap(cfg *config.BootstrapConfig) error {
 	return nil
 }
 
-func RunJobBootstrap(cfg *config.JobBootstrapConfig) error {
+func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string) error {
 	if cfg == nil {
 		log.Println("[Bootstrap] No job bootstrap config provided, skipping")
 		return nil
@@ -63,6 +68,10 @@ func RunJobBootstrap(cfg *config.JobBootstrapConfig) error {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
+		command.Env = os.Environ()
+		for k, v := range env {
+			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
+		}
 		log.Printf("[Bootstrap] Running command: %s\n", cmd)
 		if err := command.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
