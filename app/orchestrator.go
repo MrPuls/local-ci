@@ -28,6 +28,7 @@ type OrchestratorOptions struct {
 	Stages   []string
 	Remote   string
 	Env      []string
+	Parallel bool
 }
 
 var (
@@ -84,7 +85,7 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 		return err
 	}
 	defer cmd.RunGlobalCleanup(cfg.Cleanup, cfg.GlobalVariables)
-
+	// TODO: Either create a new runner for parallel execution or extend the existing one
 	runner := NewRunner(ctx, cfg)
 	prepErr := runner.PrepareJobConfigs(
 		RunnerOptions{

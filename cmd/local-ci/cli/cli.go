@@ -12,6 +12,7 @@ var (
 	stages     []string
 	remote     string
 	env        []string
+	parallel   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -38,6 +39,7 @@ func newRunCmd() *cobra.Command {
 				Stages:   stages,
 				Remote:   remote,
 				Env:      env,
+				Parallel: parallel,
 			})
 		},
 	}
@@ -48,6 +50,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&stages, "stage", "s", []string{}, "Run a specific stage(-s) from a configuration file")
 	cmd.Flags().StringVarP(&remote, "remote", "r", "", "Pull a remote repo locally and run it's local-ci.yaml file")
 	cmd.Flags().StringSliceVarP(&env, "env", "e", []string{}, "Set environment variables for the pipeline")
+	cmd.Flags().BoolVarP(&parallel, "parallel", "p", false, "Run the jobs in parallel")
 
 	return cmd
 }
