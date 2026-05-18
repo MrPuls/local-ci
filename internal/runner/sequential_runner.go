@@ -1,4 +1,4 @@
-package app
+package runner
 
 import (
 	"context"
@@ -15,29 +15,23 @@ import (
 )
 
 // Runner is the main application entry point
-type Runner struct {
+type SeqRunner struct {
 	ctx  context.Context
 	cfg  *config.Config
 	jobs []config.JobConfig
 }
 
-type RunnerOptions struct {
-	jobNames []string
-	stages   []string
-	env      map[string]string
-}
-
-func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
-	return &Runner{
+func NewSeqRunner(ctx context.Context, cfg *config.Config) *SeqRunner {
+	return &SeqRunner{
 		ctx:  ctx,
 		cfg:  cfg,
 		jobs: make([]config.JobConfig, 0),
 	}
 }
 
-func (r *Runner) Run() error {
-	stages := r.cfg.Stages
-	if len(r.jobs) == 0 {
+func (sr *SeqRunner) Run() error {
+	stages := sr.cfg.Stages
+	if len(sr.jobs) == 0 {
 		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
 	}
 
@@ -52,12 +46,12 @@ func (r *Runner) Run() error {
 		}
 	}(dockerClient)
 
-	adapter := docker.NewConfigAdapter(r.cfg)
+	adapter := docker.NewConfigAdapter(sr.cfg)
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
 	var runErr error
-	p := pipeline.NewPipeline(executor, stages, r.jobs)
-	runErr = p.Run(r.ctx)
+	p := pipeline.NewPipeline(executor, stages, sr.jobs)
+	runErr = p.Run(sr.ctx)
 
 	if runErr != nil {
 		return runErr
@@ -65,7 +59,7 @@ func (r *Runner) Run() error {
 	return nil
 }
 
-func (r *Runner) Cleanup(ctx context.Context) error {
+func (sr *SeqRunner) Cleanup(ctx context.Context) error {
 	log.Println("Starting cleanup...")
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -112,17 +106,17 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
+func (sr *SeqRunner) PrepareJobConfigs(options RunnerOptions) error {
 	log.Println("Preparing jobs...")
 	log.Println("Populating jobs with global variables...")
-	for i, job := range r.cfg.Jobs {
+	for i, job := range sr.cfg.Jobs {
 		if job.Variables == nil {
-			r.cfg.Jobs[i].Variables = make(map[string]string)
+			sr.cfg.Jobs[i].Variables = make(map[string]string)
 		}
 		//local variables take precedence over global variables
-		for k, v := range r.cfg.GlobalVariables {
+		for k, v := range sr.cfg.GlobalVariables {
 			if _, ok := job.Variables[k]; !ok {
-				r.cfg.Jobs[i].Variables[k] = v
+				sr.cfg.Jobs[i].Variables[k] = v
 			}
 		}
 	}
@@ -130,9 +124,9 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	// TODO: This feels bad man...
 
 	if len(options.jobNames) != 0 {
-		for _, job := range r.cfg.Jobs {
+		for _, job := range sr.cfg.Jobs {
 			if slices.Contains(options.jobNames, job.Name) {
-				r.jobs = append(r.jobs, job)
+				sr.jobs = append(sr.jobs, job)
 			}
 		}
 		return nil
@@ -140,22 +134,22 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 
 	if len(options.stages) != 0 {
 		for _, s := range options.stages {
-			if !slices.Contains(r.cfg.Stages, s) {
-				return fmt.Errorf("Requested stage %q is not present in config file: %q", s, r.cfg.FileName)
+			if !slices.Contains(sr.cfg.Stages, s) {
+				return fmt.Errorf("Requested stage %q is not present in config file: %q", s, sr.cfg.FileName)
 			}
 		}
-		for _, job := range r.cfg.Jobs {
+		for _, job := range sr.cfg.Jobs {
 			if slices.Contains(options.stages, job.Stage) {
-				r.jobs = append(r.jobs, job)
+				sr.jobs = append(sr.jobs, job)
 			}
 		}
 		return nil
 	}
 
-	for _, s := range r.cfg.Stages {
-		for _, job := range r.cfg.Jobs {
+	for _, s := range sr.cfg.Stages {
+		for _, job := range sr.cfg.Jobs {
 			if job.Stage == s {
-				r.jobs = append(r.jobs, job)
+				sr.jobs = append(sr.jobs, job)
 			}
 		}
 	}

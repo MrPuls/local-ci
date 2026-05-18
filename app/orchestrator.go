@@ -15,6 +15,7 @@ import (
 	"github.com/MrPuls/local-ci/internal/integrations/cmd"
 	"github.com/MrPuls/local-ci/internal/integrations/git"
 	"github.com/MrPuls/local-ci/internal/integrations/gitlab"
+	"github.com/MrPuls/local-ci/internal/runner"
 )
 
 type Orchestrator struct{}
@@ -86,7 +87,7 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	}
 	defer cmd.RunGlobalCleanup(cfg.Cleanup, cfg.GlobalVariables)
 	// TODO: Either create a new runner for parallel execution or extend the existing one
-	runner := NewRunner(ctx, cfg)
+	runner := runner.NewRunner(ctx, runner.RunnerOptions{});
 	prepErr := runner.PrepareJobConfigs(
 		RunnerOptions{
 			jobNames: options.JobNames,
