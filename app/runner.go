@@ -1,4 +1,4 @@
-package runner
+package app
 
 import (
 	"context"
@@ -8,30 +8,40 @@ import (
 
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/docker"
-	"github.com/MrPuls/local-ci/internal/pipeline"
+	"github.com/MrPuls/local-ci/internal/integrations/cmd"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 )
 
-// Runner is the main application entry point
-type SeqRunner struct {
+type Runner struct {
 	ctx  context.Context
 	cfg  *config.Config
 	jobs []config.JobConfig
 }
 
-func NewSeqRunner(ctx context.Context, cfg *config.Config) *SeqRunner {
-	return &SeqRunner{
+type RunnerOptions struct {
+	jobNames []string
+	stages   []string
+	env      map[string]string
+	parallel bool
+}
+
+func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
+	return &Runner{
 		ctx:  ctx,
 		cfg:  cfg,
 		jobs: make([]config.JobConfig, 0),
 	}
 }
 
-func (sr *SeqRunner) Run() error {
-	stages := sr.cfg.Stages
-	if len(sr.jobs) == 0 {
+func (r *Runner) Run() error {
+	return nil
+}
+
+func (r *Runner) runSequentially() error {
+	stages := r.cfg.Stages
+	if len(r.jobs) == 0 {
 		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
 	}
 
@@ -46,20 +56,34 @@ func (sr *SeqRunner) Run() error {
 		}
 	}(dockerClient)
 
-	adapter := docker.NewConfigAdapter(sr.cfg)
+	adapter := docker.NewConfigAdapter(r.cfg)
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
-	var runErr error
-	p := pipeline.NewPipeline(executor, stages, sr.jobs)
-	runErr = p.Run(sr.ctx)
+	log.Printf("Running jobs for stages %v", stages)
+	log.Printf("Running jobs %v", r.jobs)
+	for _, j := range r.jobs {
+		if err := cmd.RunJobBootstrap(j.JobBootstrap, j.Variables); err != nil {
+			return fmt.Errorf("Job %s bootstrap failed: %w", j.Name, err)
+		}
 
-	if runErr != nil {
-		return runErr
+		jobErr := executor.Execute(r.ctx, j)
+
+		if cleanupErr := cmd.RunJobCleanup(j.JobCleanup, j.Variables); cleanupErr != nil {
+			return fmt.Errorf("Job %s cleanup failed: %v", j.Name, cleanupErr)
+		}
+
+		if jobErr != nil {
+			return fmt.Errorf("Job %s failed: %w", j.Name, jobErr)
+		}
 	}
 	return nil
 }
 
-func (sr *SeqRunner) Cleanup(ctx context.Context) error {
+func (r *Runner) runParallel() error {
+	return nil
+}
+
+func (r *Runner) Cleanup(ctx context.Context) error {
 	log.Println("Starting cleanup...")
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -106,17 +130,17 @@ func (sr *SeqRunner) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-func (sr *SeqRunner) PrepareJobConfigs(options RunnerOptions) error {
+func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	log.Println("Preparing jobs...")
 	log.Println("Populating jobs with global variables...")
-	for i, job := range sr.cfg.Jobs {
+	for i, job := range r.cfg.Jobs {
 		if job.Variables == nil {
-			sr.cfg.Jobs[i].Variables = make(map[string]string)
+			r.cfg.Jobs[i].Variables = make(map[string]string)
 		}
 		//local variables take precedence over global variables
-		for k, v := range sr.cfg.GlobalVariables {
+		for k, v := range r.cfg.GlobalVariables {
 			if _, ok := job.Variables[k]; !ok {
-				sr.cfg.Jobs[i].Variables[k] = v
+				r.cfg.Jobs[i].Variables[k] = v
 			}
 		}
 	}
@@ -124,9 +148,9 @@ func (sr *SeqRunner) PrepareJobConfigs(options RunnerOptions) error {
 	// TODO: This feels bad man...
 
 	if len(options.jobNames) != 0 {
-		for _, job := range sr.cfg.Jobs {
+		for _, job := range r.cfg.Jobs {
 			if slices.Contains(options.jobNames, job.Name) {
-				sr.jobs = append(sr.jobs, job)
+				r.jobs = append(r.jobs, job)
 			}
 		}
 		return nil
@@ -134,22 +158,22 @@ func (sr *SeqRunner) PrepareJobConfigs(options RunnerOptions) error {
 
 	if len(options.stages) != 0 {
 		for _, s := range options.stages {
-			if !slices.Contains(sr.cfg.Stages, s) {
-				return fmt.Errorf("Requested stage %q is not present in config file: %q", s, sr.cfg.FileName)
+			if !slices.Contains(r.cfg.Stages, s) {
+				return fmt.Errorf("Requested stage %q is not present in config file: %q", s, r.cfg.FileName)
 			}
 		}
-		for _, job := range sr.cfg.Jobs {
+		for _, job := range r.cfg.Jobs {
 			if slices.Contains(options.stages, job.Stage) {
-				sr.jobs = append(sr.jobs, job)
+				r.jobs = append(r.jobs, job)
 			}
 		}
 		return nil
 	}
 
-	for _, s := range sr.cfg.Stages {
-		for _, job := range sr.cfg.Jobs {
+	for _, s := range r.cfg.Stages {
+		for _, job := range r.cfg.Jobs {
 			if job.Stage == s {
-				sr.jobs = append(sr.jobs, job)
+				r.jobs = append(r.jobs, job)
 			}
 		}
 	}
