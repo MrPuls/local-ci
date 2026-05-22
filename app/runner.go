@@ -20,26 +20,35 @@ import (
 	"github.com/docker/docker/client"
 )
 
+type RunMode int
+
+const (
+	ModeSequential RunMode = iota
+	ModeParallel
+	ModeParallelStages
+)
+
 type Runner struct {
-	ctx      context.Context
-	cfg      *config.Config
-	jobs     []config.JobConfig
-	parallel bool
+	ctx  context.Context
+	cfg  *config.Config
+	jobs []config.JobConfig
+	mode RunMode
 }
 
 type RunnerOptions struct {
-	jobNames []string
-	stages   []string
-	env      map[string]string
-	parallel bool
+	jobNames       []string
+	stages         []string
+	env            map[string]string
+	parallel       bool
+	parallelStages bool
 }
 
 func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
 	return &Runner{
-		ctx:      ctx,
-		cfg:      cfg,
-		jobs:     make([]config.JobConfig, 0),
-		parallel: false,
+		ctx:  ctx,
+		cfg:  cfg,
+		jobs: make([]config.JobConfig, 0),
+		mode: ModeSequential,
 	}
 }
 
@@ -67,11 +76,14 @@ func (r *Runner) Run() error {
 	adapter := docker.NewConfigAdapter(r.cfg)
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
-	if r.parallel {
+	switch r.mode {
+	case ModeParallelStages:
+		return r.runStagesParallel(executor)
+	case ModeParallel:
 		return r.runParallel(executor)
+	default:
+		return r.runSequentially(executor)
 	}
-
-	return r.runSequentially(executor)
 }
 
 func (r *Runner) runSequentially(executor *docker.Executor) error {
@@ -83,36 +95,68 @@ func (r *Runner) runSequentially(executor *docker.Executor) error {
 	return nil
 }
 
-func (r *Runner) runParallel(executor *docker.Executor) error {
+// setupRunLogging creates the run log directory and diverts diagnostic log
+// output to a pipeline log file so the status board has exclusive control of
+// the terminal. The returned func restores the previous log output and closes
+// the pipeline log file; callers must defer it.
+func setupRunLogging() (string, func(), error) {
 	logDir, err := fs.MakeRunLogDir()
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 
 	pipelineLog, err := os.Create(filepath.Join(logDir, "pipeline.log"))
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	defer pipelineLog.Close()
 
-	// Divert diagnostic log chatter to a pipeline log file so the status
-	// board has exclusive control of the terminal while jobs run.
 	prevLogOut := log.Writer()
 	log.SetOutput(pipelineLog)
-	defer log.SetOutput(prevLogOut)
+	restore := func() {
+		log.SetOutput(prevLogOut)
+		pipelineLog.Close()
+	}
+	return logDir, restore, nil
+}
 
-	fmt.Printf("Running %d jobs in parallel, logs in %s\n", len(r.jobs), logDir)
+type stageJobs struct {
+	stage string
+	jobs  []config.JobConfig
+}
 
-	names := make([]string, len(r.jobs))
-	for i, j := range r.jobs {
+// jobsByStage groups the prepared jobs by stage, preserving the stage order
+// declared in the config. Stages with no jobs are omitted.
+func (r *Runner) jobsByStage() []stageJobs {
+	var groups []stageJobs
+	for _, stage := range r.cfg.Stages {
+		var jobs []config.JobConfig
+		for _, j := range r.jobs {
+			if j.Stage == stage {
+				jobs = append(jobs, j)
+			}
+		}
+		if len(jobs) > 0 {
+			groups = append(groups, stageJobs{stage: stage, jobs: jobs})
+		}
+	}
+	return groups
+}
+
+func jobNames(jobs []config.JobConfig) []string {
+	names := make([]string, len(jobs))
+	for i, j := range jobs {
 		names[i] = j.Name
 	}
-	board := NewStatusBoard(names, os.Stdout)
-	board.Start()
+	return names
+}
 
+// runJobsParallel runs the given jobs concurrently, each writing its output to
+// its own log file in logDir, reporting progress to board. It waits for every
+// job to finish and returns the joined error of all of them.
+func (r *Runner) runJobsParallel(executor *docker.Executor, jobs []config.JobConfig, logDir string, board *StatusBoard) error {
 	var wg sync.WaitGroup
-	errs := make([]error, len(r.jobs))
-	for i, j := range r.jobs {
+	errs := make([]error, len(jobs))
+	for i, j := range jobs {
 		wg.Add(1)
 		go func(i int, j config.JobConfig) {
 			defer wg.Done()
@@ -135,9 +179,49 @@ func (r *Runner) runParallel(executor *docker.Executor) error {
 		}(i, j)
 	}
 	wg.Wait()
+	return errors.Join(errs...)
+}
+
+func (r *Runner) runParallel(executor *docker.Executor) error {
+	logDir, restore, err := setupRunLogging()
+	if err != nil {
+		return err
+	}
+	defer restore()
+
+	fmt.Printf("Running %d jobs in parallel, logs in %s\n", len(r.jobs), logDir)
+
+	board := NewStatusBoard(jobNames(r.jobs), os.Stdout)
+	board.Start()
+	runErr := r.runJobsParallel(executor, r.jobs, logDir, board)
 	board.Stop()
 
-	return errors.Join(errs...)
+	return runErr
+}
+
+// runStagesParallel runs jobs stage by stage: stages execute in their declared
+// order, jobs within a stage run concurrently. A stage whose jobs report a
+// failure stops the pipeline before the next stage starts.
+func (r *Runner) runStagesParallel(executor *docker.Executor) error {
+	logDir, restore, err := setupRunLogging()
+	if err != nil {
+		return err
+	}
+	defer restore()
+
+	fmt.Printf("Running jobs by stage in parallel, logs in %s\n", logDir)
+
+	for _, group := range r.jobsByStage() {
+		fmt.Printf("\nStage: %s\n", group.stage)
+		board := NewStatusBoard(jobNames(group.jobs), os.Stdout)
+		board.Start()
+		stageErr := r.runJobsParallel(executor, group.jobs, logDir, board)
+		board.Stop()
+		if stageErr != nil {
+			return stageErr
+		}
+	}
+	return nil
 }
 
 func (r *Runner) runJob(executor *docker.Executor, j config.JobConfig, out io.Writer) error {
@@ -207,7 +291,14 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 
 func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	log.Println("Preparing jobs...")
-	r.parallel = options.parallel
+	switch {
+	case options.parallelStages:
+		r.mode = ModeParallelStages
+	case options.parallel:
+		r.mode = ModeParallel
+	default:
+		r.mode = ModeSequential
+	}
 	log.Println("Populating jobs with global variables...")
 	for i, job := range r.cfg.Jobs {
 		if job.Variables == nil {

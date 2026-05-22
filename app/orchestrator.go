@@ -24,11 +24,12 @@ func NewOrchestrator() *Orchestrator {
 }
 
 type OrchestratorOptions struct {
-	JobNames []string
-	Stages   []string
-	Remote   string
-	Env      []string
-	Parallel bool
+	JobNames       []string
+	Stages         []string
+	Remote         string
+	Env            []string
+	Parallel       bool
+	ParallelStages bool
 }
 
 var (
@@ -89,9 +90,10 @@ func (o *Orchestrator) Orchestrate(configFile string, options OrchestratorOption
 	runner := NewRunner(ctx, cfg)
 	prepErr := runner.PrepareJobConfigs(
 		RunnerOptions{
-			jobNames: options.JobNames,
-			stages:   options.Stages,
-			parallel: options.Parallel,
+			jobNames:       options.JobNames,
+			stages:         options.Stages,
+			parallel:       options.Parallel,
+			parallelStages: options.ParallelStages,
 		},
 	)
 

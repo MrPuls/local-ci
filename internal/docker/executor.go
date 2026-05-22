@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -101,7 +102,13 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 		if err != nil {
 			return err
 		}
-	case <-statusCh:
+	case status := <-statusCh:
+		if status.Error != nil {
+			return fmt.Errorf("container wait failed: %s", status.Error.Message)
+		}
+		if status.StatusCode != 0 {
+			return fmt.Errorf("container exited with non-zero status %d", status.StatusCode)
+		}
 	}
 
 	log.Println("[Docker] All done!")
