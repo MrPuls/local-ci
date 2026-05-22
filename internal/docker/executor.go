@@ -15,9 +15,8 @@ import (
 )
 
 type Executor struct {
-	client      *client.Client
-	adapter     ConfigAdapter
-	containerID string
+	client  *client.Client
+	adapter ConfigAdapter
 }
 
 func NewDockerExecutor(client *client.Client, adapter ConfigAdapter) *Executor {
@@ -27,7 +26,7 @@ func NewDockerExecutor(client *client.Client, adapter ConfigAdapter) *Executor {
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
+func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Writer) error {
 	cm := NewContainerManager(e.client, e.adapter)
 	im := NewImageManager(e.client, e.adapter)
 	log.Println("Parsing working directory...")
@@ -49,8 +48,8 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 		}
 	}(reader)
 
-	// Or io.Copy(ioutil.Discard, reader) is we don't want to stream it to stdout
-	_, readerErr := io.Copy(os.Stdout, reader)
+	// Or io.Copy(ioutil.Discard, reader) is we don't want to stream it to out
+	_, readerErr := io.Copy(out, reader)
 	if readerErr != nil {
 		return readerErr
 	}
@@ -62,7 +61,7 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 		return createErr
 	}
 
-	e.containerID = containerResp.ID
+	containerID := containerResp.ID
 
 	var b bytes.Buffer
 	log.Println("[Docker] Trying to create a fs tar...")
@@ -73,30 +72,30 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 
 	log.Println("[Docker] Trying to copy files to container...")
 	// options could be switched to adapter type if needed more customization
-	copyErr := cm.CopyToContainer(ctx, e.containerID, job.Workdir, &b, container.CopyToContainerOptions{})
+	copyErr := cm.CopyToContainer(ctx, containerID, job.Workdir, &b, container.CopyToContainerOptions{})
 	if copyErr != nil {
 		return copyErr
 	}
 
 	log.Println("[Docker] Attaching logger to container...")
-	logs, logErr := cm.AttachLogger(ctx, e.containerID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
+	logs, logErr := cm.AttachLogger(ctx, containerID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
 	if logErr != nil {
 		return logErr
 	}
 	defer logs.Close()
 
 	log.Println("[Docker] Trying to start a container...")
-	if startErr := cm.StartContainer(ctx, e.containerID, container.StartOptions{}); startErr != nil {
+	if startErr := cm.StartContainer(ctx, containerID, container.StartOptions{}); startErr != nil {
 		return startErr
 	}
 
-	_, stdErr := io.Copy(os.Stdout, logs.Reader)
+	_, stdErr := io.Copy(out, logs.Reader)
 	if stdErr != nil && stdErr != io.EOF {
 		return stdErr
 	}
 
 	log.Println("[Docker] Waiting for container to finish...")
-	statusCh, errCh := cm.WaitForContainer(ctx, e.containerID, container.WaitConditionNotRunning)
+	statusCh, errCh := cm.WaitForContainer(ctx, containerID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -108,10 +107,4 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig) error {
 	log.Println("[Docker] All done!")
 	log.Println("[Docker] Starting cleanup...")
 	return nil
-}
-
-func (e *Executor) Cleanup(ctx context.Context) error {
-	cm := NewContainerManager(e.client, e.adapter)
-	log.Println("[Docker] Cleaning up container...")
-	return cm.RemoveContainer(ctx, e.containerID, container.RemoveOptions{})
 }

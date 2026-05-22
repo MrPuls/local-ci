@@ -2,22 +2,29 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/docker"
 	"github.com/MrPuls/local-ci/internal/integrations/cmd"
+	"github.com/MrPuls/local-ci/internal/integrations/fs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 )
 
 type Runner struct {
-	ctx  context.Context
-	cfg  *config.Config
-	jobs []config.JobConfig
+	ctx      context.Context
+	cfg      *config.Config
+	jobs     []config.JobConfig
+	parallel bool
 }
 
 type RunnerOptions struct {
@@ -29,18 +36,19 @@ type RunnerOptions struct {
 
 func NewRunner(ctx context.Context, cfg *config.Config) *Runner {
 	return &Runner{
-		ctx:  ctx,
-		cfg:  cfg,
-		jobs: make([]config.JobConfig, 0),
+		ctx:      ctx,
+		cfg:      cfg,
+		jobs:     make([]config.JobConfig, 0),
+		parallel: false,
 	}
 }
 
 func (r *Runner) Run() error {
-	return nil
-}
-
-func (r *Runner) runSequentially() error {
 	stages := r.cfg.Stages
+
+	log.Printf("Running jobs for stages %v", stages)
+	log.Printf("Running jobs %v", r.jobs)
+
 	if len(r.jobs) == 0 {
 		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
 	}
@@ -59,27 +67,94 @@ func (r *Runner) runSequentially() error {
 	adapter := docker.NewConfigAdapter(r.cfg)
 	executor := docker.NewDockerExecutor(dockerClient, adapter)
 
-	log.Printf("Running jobs for stages %v", stages)
-	log.Printf("Running jobs %v", r.jobs)
+	if r.parallel {
+		return r.runParallel(executor)
+	}
+
+	return r.runSequentially(executor)
+}
+
+func (r *Runner) runSequentially(executor *docker.Executor) error {
 	for _, j := range r.jobs {
-		if err := cmd.RunJobBootstrap(j.JobBootstrap, j.Variables); err != nil {
-			return fmt.Errorf("Job %s bootstrap failed: %w", j.Name, err)
-		}
-
-		jobErr := executor.Execute(r.ctx, j)
-
-		if cleanupErr := cmd.RunJobCleanup(j.JobCleanup, j.Variables); cleanupErr != nil {
-			return fmt.Errorf("Job %s cleanup failed: %v", j.Name, cleanupErr)
-		}
-
-		if jobErr != nil {
-			return fmt.Errorf("Job %s failed: %w", j.Name, jobErr)
+		if err := r.runJob(executor, j, os.Stdout); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (r *Runner) runParallel() error {
+func (r *Runner) runParallel(executor *docker.Executor) error {
+	logDir, err := fs.MakeRunLogDir()
+	if err != nil {
+		return err
+	}
+
+	pipelineLog, err := os.Create(filepath.Join(logDir, "pipeline.log"))
+	if err != nil {
+		return err
+	}
+	defer pipelineLog.Close()
+
+	// Divert diagnostic log chatter to a pipeline log file so the status
+	// board has exclusive control of the terminal while jobs run.
+	prevLogOut := log.Writer()
+	log.SetOutput(pipelineLog)
+	defer log.SetOutput(prevLogOut)
+
+	fmt.Printf("Running %d jobs in parallel, logs in %s\n", len(r.jobs), logDir)
+
+	names := make([]string, len(r.jobs))
+	for i, j := range r.jobs {
+		names[i] = j.Name
+	}
+	board := NewStatusBoard(names, os.Stdout)
+	board.Start()
+
+	var wg sync.WaitGroup
+	errs := make([]error, len(r.jobs))
+	for i, j := range r.jobs {
+		wg.Add(1)
+		go func(i int, j config.JobConfig) {
+			defer wg.Done()
+
+			f, ferr := os.Create(filepath.Join(logDir, j.Name+".log"))
+			if ferr != nil {
+				errs[i] = fmt.Errorf("job %s: failed to create log file: %w", j.Name, ferr)
+				board.Update(j.Name, StateFailed)
+				return
+			}
+			defer f.Close()
+
+			board.Update(j.Name, StateRunning)
+			if jobErr := r.runJob(executor, j, f); jobErr != nil {
+				errs[i] = jobErr
+				board.Update(j.Name, StateFailed)
+				return
+			}
+			board.Update(j.Name, StatePassed)
+		}(i, j)
+	}
+	wg.Wait()
+	board.Stop()
+
+	return errors.Join(errs...)
+}
+
+func (r *Runner) runJob(executor *docker.Executor, j config.JobConfig, out io.Writer) error {
+	if err := cmd.RunJobBootstrap(j.JobBootstrap, j.Variables, out); err != nil {
+		return fmt.Errorf("Job %s bootstrap failed: %w", j.Name, err)
+	}
+
+	jobErr := executor.Execute(r.ctx, j, out)
+
+	if cleanupErr := cmd.RunJobCleanup(j.JobCleanup, j.Variables, out); cleanupErr != nil {
+		return fmt.Errorf("Job %s cleanup failed: %v", j.Name, cleanupErr)
+	}
+
+	if jobErr != nil {
+		return fmt.Errorf("Job %s failed: %w", j.Name, jobErr)
+	}
+
 	return nil
 }
 
@@ -132,6 +207,7 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 
 func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 	log.Println("Preparing jobs...")
+	r.parallel = options.parallel
 	log.Println("Populating jobs with global variables...")
 	for i, job := range r.cfg.Jobs {
 		if job.Variables == nil {

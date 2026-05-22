@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -50,7 +51,7 @@ func RunGlobalBootstrap(cfg *config.BootstrapConfig, env map[string]string) erro
 	return nil
 }
 
-func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string) error {
+func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string, out io.Writer) error {
 	if cfg == nil {
 		log.Println("[Bootstrap] No job bootstrap config provided, skipping")
 		return nil
@@ -66,8 +67,8 @@ func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string) erro
 	log.Printf("[Bootstrap] Running job bootstrap with timeout %d minute(s)\n", timeout)
 	for _, cmd := range cfg.Run {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
+		command.Stdout = out
+		command.Stderr = out
 		command.Env = os.Environ()
 		for k, v := range env {
 			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
