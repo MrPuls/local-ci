@@ -82,6 +82,9 @@ func (r *Runner) Run() error {
 	case ModeParallel:
 		return r.runParallel(executor)
 	default:
+		if hasDetached(r.jobs) {
+			return r.runSequentialWithDetached(executor)
+		}
 		return r.runSequentially(executor)
 	}
 }
@@ -93,6 +96,80 @@ func (r *Runner) runSequentially(executor *docker.Executor) error {
 		}
 	}
 	return nil
+}
+
+func hasDetached(jobs []config.JobConfig) bool {
+	for _, j := range jobs {
+		if j.Parallel {
+			return true
+		}
+	}
+	return false
+}
+
+func partitionByParallel(jobs []config.JobConfig) (sequential, detached []config.JobConfig) {
+	for _, j := range jobs {
+		if j.Parallel {
+			detached = append(detached, j)
+		} else {
+			sequential = append(sequential, j)
+		}
+	}
+	return
+}
+
+// runSequentialWithDetached runs jobs marked `parallel: true` as detached
+// goroutines starting at pipeline launch, while remaining jobs run
+// sequentially streaming to stdout. The sequential chain stops on first
+// failure but the pipeline waits for all detached jobs to finish before
+// returning the aggregate error.
+func (r *Runner) runSequentialWithDetached(executor *docker.Executor) error {
+	sequential, detached := partitionByParallel(r.jobs)
+
+	logDir, err := fs.MakeRunLogDir()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Detached jobs will log to %s\n", logDir)
+
+	var wg sync.WaitGroup
+	detachedErrs := make([]error, len(detached))
+	for i, j := range detached {
+		wg.Add(1)
+		go func(i int, j config.JobConfig) {
+			defer wg.Done()
+			logPath := filepath.Join(logDir, j.Name+".log")
+			f, ferr := os.Create(logPath)
+			if ferr != nil {
+				detachedErrs[i] = fmt.Errorf("job %s: failed to create log file: %w", j.Name, ferr)
+				fmt.Printf("[detached] %s: failed to create log file\n", j.Name)
+				return
+			}
+			defer f.Close()
+			fmt.Printf("[detached] %s: started → %s\n", j.Name, logPath)
+			if jobErr := r.runJob(executor, j, f); jobErr != nil {
+				detachedErrs[i] = jobErr
+				fmt.Printf("[detached] %s: failed (see %s)\n", j.Name, logPath)
+				return
+			}
+			fmt.Printf("[detached] %s: passed\n", j.Name)
+		}(i, j)
+	}
+
+	var seqErr error
+	for _, j := range sequential {
+		if err := r.runJob(executor, j, os.Stdout); err != nil {
+			seqErr = err
+			break
+		}
+	}
+
+	if len(detached) > 0 {
+		fmt.Println("Waiting for detached jobs to finish...")
+	}
+	wg.Wait()
+
+	return errors.Join(append([]error{seqErr}, detachedErrs...)...)
 }
 
 // setupRunLogging creates the run log directory and diverts diagnostic log

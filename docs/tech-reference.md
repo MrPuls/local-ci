@@ -15,6 +15,7 @@
    - [Caching System](#caching-system)
    - [Job-Specific Execution](#job-specific-execution)
    - [Stage-Specific Execution](#stage-specific-execution)
+   - [Per-Job Parallel Flag](#per-job-parallel-flag)
    - [Parallel Execution](#parallel-execution)
    - [Graceful Shutdown](#graceful-shutdown)
    - [Remote Clone and Execution](#remote-clone-and-execution)
@@ -278,6 +279,63 @@ local-ci run --job Test
 ```
 
 This will execute only the Test job, skipping the Build and Deploy stages.
+
+### Per-Job Parallel Flag
+
+In default sequential mode, individual jobs can opt out of the sequential chain by setting `parallel: true` in their config. Such jobs are launched at pipeline start and run in the background while the remaining jobs continue to execute one after another.
+
+```yaml
+stages:
+  - build
+  - test
+  - deploy
+
+Build:
+  stage: build
+  image: golang:1.22
+  script:
+    - go build ./...
+
+Lint:
+  stage: build
+  image: golang:1.22
+  parallel: true
+  script:
+    - go vet ./...
+
+Test:
+  stage: test
+  image: golang:1.22
+  script:
+    - go test ./...
+```
+
+In this example, `Build` and `Test` run sequentially in stage order, while `Lint` starts alongside `Build` and finishes whenever it finishes — its result does not block `Test`.
+
+#### How It Works
+
+1. **Decoupled from stages**:
+   - Jobs marked `parallel: true` ignore stage boundaries; they all start at pipeline launch regardless of which stage they belong to.
+   - Remaining jobs (without the flag) run in their normal stage order.
+
+2. **Output**:
+   - Sequential jobs stream their output to stdout exactly like a normal run.
+   - Detached jobs write their full output to `.local-ci/logs/<timestamp>/<job-name>.log`.
+   - Each detached job prints one line when it starts (`[detached] Name: started → <path>`) and one line when it finishes (`[detached] Name: passed` or `[detached] Name: failed (see <path>)`).
+   - There is no live status board in this mode — the sequential stream owns the terminal.
+
+3. **Failure semantics**:
+   - If a sequential job fails, the sequential chain stops, but the pipeline still waits for detached jobs to finish before exiting. This avoids leaving orphaned containers behind.
+   - If a detached job fails, the sequential chain is unaffected. The pipeline exit code aggregates failures from both groups.
+
+4. **Interaction with flags**:
+   - `--parallel` and `--parallel-stages` ignore the keyword entirely — they have their own execution model.
+   - `--job` and `--stage` filter first; the keyword only controls *how* a selected job runs, not whether it runs.
+
+#### Notes
+
+- Detached jobs that share a cache key with sequential or other detached jobs may corrupt the cache through concurrent writes. Avoid sharing cache keys between jobs that can run at the same time.
+- The `.local-ci/` directory should be added to `.gitignore` so run logs are not committed.
 
 ### Parallel Execution
 

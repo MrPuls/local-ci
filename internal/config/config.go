@@ -56,6 +56,7 @@ type JobConfig struct {
 	Network      *NetworkConfig      `yaml:"network,omitempty"`
 	JobBootstrap *JobBootstrapConfig `yaml:"job_bootstrap,omitempty"`
 	JobCleanup   *JobCleanupConfig   `yaml:"job_cleanup,omitempty"`
+	Parallel     bool                `yaml:"parallel,omitempty"`
 }
 
 type Config struct {

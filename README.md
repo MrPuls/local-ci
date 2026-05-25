@@ -16,6 +16,7 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Stage-based pipeline execution
 - Job-based pipeline execution
 - Parallel job execution (all jobs at once, or per-stage) with a live status board
+- Per-job `parallel: true` keyword for detaching individual jobs from the sequential chain
 - GitLab utils
 - Bootstrap scripts
 - Cleanup scripts (companion to bootstrap)
