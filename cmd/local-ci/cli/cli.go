@@ -6,12 +6,14 @@ import (
 )
 
 var (
-	version    = "0.0.24"
-	configFile string
-	jobs       []string
-	stages     []string
-	remote     string
-	env        []string
+	version        = "0.1.0"
+	configFile     string
+	jobs           []string
+	stages         []string
+	remote         string
+	env            []string
+	parallel       bool
+	parallelStages bool
 )
 
 var rootCmd = &cobra.Command{
@@ -34,10 +36,12 @@ func newRunCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orchestrator := app.NewOrchestrator()
 			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{
-				JobNames: jobs,
-				Stages:   stages,
-				Remote:   remote,
-				Env:      env,
+				JobNames:       jobs,
+				Stages:         stages,
+				Remote:         remote,
+				Env:            env,
+				Parallel:       parallel,
+				ParallelStages: parallelStages,
 			})
 		},
 	}
@@ -48,6 +52,9 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&stages, "stage", "s", []string{}, "Run a specific stage(-s) from a configuration file")
 	cmd.Flags().StringVarP(&remote, "remote", "r", "", "Pull a remote repo locally and run it's local-ci.yaml file")
 	cmd.Flags().StringSliceVarP(&env, "env", "e", []string{}, "Set environment variables for the pipeline")
+	cmd.Flags().BoolVarP(&parallel, "parallel", "p", false, "Run all jobs in parallel, ignoring stages")
+	cmd.Flags().BoolVar(&parallelStages, "parallel-stages", false, "Run stages in order, with jobs inside each stage in parallel")
+	cmd.MarkFlagsMutuallyExclusive("parallel", "parallel-stages")
 
 	return cmd
 }

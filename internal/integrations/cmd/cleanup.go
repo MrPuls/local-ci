@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -48,7 +49,7 @@ func RunGlobalCleanup(cfg *config.CleanupConfig, env map[string]string) {
 	log.Println("[Cleanup] Global cleanup completed successfully")
 }
 
-func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string) error {
+func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string, out io.Writer) error {
 	if cfg == nil {
 		log.Println("[Cleanup] No job cleanup config provided, skipping")
 		return nil
@@ -64,8 +65,8 @@ func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string) error {
 	log.Printf("[Cleanup] Running job cleanup with timeout %d minute(s)\n", timeout)
 	for _, cmd := range cfg.Run {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
+		command.Stdout = out
+		command.Stderr = out
 		command.Env = os.Environ()
 		for k, v := range env {
 			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))

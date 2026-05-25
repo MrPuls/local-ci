@@ -15,6 +15,8 @@
    - [Caching System](#caching-system)
    - [Job-Specific Execution](#job-specific-execution)
    - [Stage-Specific Execution](#stage-specific-execution)
+   - [Per-Job Parallel Flag](#per-job-parallel-flag)
+   - [Parallel Execution](#parallel-execution)
    - [Graceful Shutdown](#graceful-shutdown)
    - [Remote Clone and Execution](#remote-clone-and-execution)
    - [Bootstrap](#bootstrap)
@@ -36,6 +38,12 @@ local-ci run --config my-config.yaml
 
 # Run specific job only
 local-ci run --job JobName
+
+# Run all jobs in parallel
+local-ci run --parallel
+
+# Run stages in order, with jobs inside each stage in parallel
+local-ci run --parallel-stages
 
 # Show version information
 local-ci version
@@ -90,7 +98,7 @@ For each job:
 
 4. **Execution**:
    - Starts the container
-   - Streams logs in real-time to stdout
+   - Streams logs in real-time to stdout (in parallel mode, logs are written to per-job files instead — see [Parallel Execution](#parallel-execution))
    - Waits for container completion
 
 5. **Cleanup**:
@@ -271,6 +279,109 @@ local-ci run --job Test
 ```
 
 This will execute only the Test job, skipping the Build and Deploy stages.
+
+### Per-Job Parallel Flag
+
+In default sequential mode, individual jobs can opt out of the sequential chain by setting `parallel: true` in their config. Such jobs are launched at pipeline start and run in the background while the remaining jobs continue to execute one after another.
+
+```yaml
+stages:
+  - build
+  - test
+  - deploy
+
+Build:
+  stage: build
+  image: golang:1.22
+  script:
+    - go build ./...
+
+Lint:
+  stage: build
+  image: golang:1.22
+  parallel: true
+  script:
+    - go vet ./...
+
+Test:
+  stage: test
+  image: golang:1.22
+  script:
+    - go test ./...
+```
+
+In this example, `Build` and `Test` run sequentially in stage order, while `Lint` starts alongside `Build` and finishes whenever it finishes — its result does not block `Test`.
+
+#### How It Works
+
+1. **Decoupled from stages**:
+   - Jobs marked `parallel: true` ignore stage boundaries; they all start at pipeline launch regardless of which stage they belong to.
+   - Remaining jobs (without the flag) run in their normal stage order.
+
+2. **Output**:
+   - Sequential jobs stream their output to stdout exactly like a normal run.
+   - Detached jobs write their full output to `.local-ci/logs/<timestamp>/<job-name>.log`.
+   - Each detached job prints one line when it starts (`[detached] Name: started → <path>`) and one line when it finishes (`[detached] Name: passed` or `[detached] Name: failed (see <path>)`).
+   - There is no live status board in this mode — the sequential stream owns the terminal.
+
+3. **Failure semantics**:
+   - If a sequential job fails, the sequential chain stops, but the pipeline still waits for detached jobs to finish before exiting. This avoids leaving orphaned containers behind.
+   - If a detached job fails, the sequential chain is unaffected. The pipeline exit code aggregates failures from both groups.
+
+4. **Interaction with flags**:
+   - `--parallel` and `--parallel-stages` ignore the keyword entirely — they have their own execution model.
+   - `--job` and `--stage` filter first; the keyword only controls *how* a selected job runs, not whether it runs.
+
+#### Notes
+
+- Detached jobs that share a cache key with sequential or other detached jobs may corrupt the cache through concurrent writes. Avoid sharing cache keys between jobs that can run at the same time.
+- The `.local-ci/` directory should be added to `.gitignore` so run logs are not committed.
+
+### Parallel Execution
+
+By default, jobs run one after another. Local CI offers two parallel modes, controlled by mutually exclusive flags:
+
+- `--parallel` (`-p`) — runs **all** selected jobs concurrently, ignoring stages
+- `--parallel-stages` — runs **stages in order**, with the jobs inside each stage concurrently
+
+```bash
+# Run every job at once
+local-ci run --parallel
+
+# Run stages sequentially, jobs within a stage in parallel
+local-ci run --parallel-stages
+```
+
+Passing both flags at once is rejected.
+
+#### How It Works
+
+Both modes share the same execution behavior:
+
+1. **Concurrent Job Execution**:
+   - Jobs in a parallel group run at the same time
+   - With `--parallel`, every selected job forms a single group regardless of its stage
+   - With `--parallel-stages`, each stage is its own group; stages run in the order declared under `stages`, and a stage whose jobs report a failure stops the pipeline before the next stage starts
+   - Local CI waits for all jobs in a group to finish before proceeding
+
+2. **Per-Job Log Files**:
+   - Because concurrent jobs would interleave their output, logs are not streamed to the terminal
+   - Each run creates a timestamped directory at `.local-ci/logs/<timestamp>/`
+   - Every job writes its full output (image pull, container logs, job bootstrap/cleanup) to its own `<job-name>.log` file inside that directory
+   - Diagnostic messages are collected in a separate `pipeline.log` file
+
+3. **Live Status Board**:
+   - In place of streamed logs, the terminal shows a live status board
+   - Each job is listed with a spinner and its current state: `pending`, `running`, `passed`, or `failed`
+   - The board repaints in place until all jobs complete; with `--parallel-stages`, a fresh board is shown per stage
+
+4. **Error Aggregation**:
+   - Errors from all jobs in a group are collected rather than failing on the first one
+   - The pipeline reports a failure if any job failed, after every job in the group has finished
+
+#### Notes
+
+- The `.local-ci/` directory should be added to `.gitignore` so run logs are not committed.
 
 ### Graceful Shutdown
 
@@ -537,14 +648,12 @@ The agent runs the pipeline, observes the results, and reports back whether both
 1. **Current Limitations**:
 
    - Single-node execution only
-   - Sequential execution within stages
    - Fixed one-hour timeout
    - Job-specific execution bypasses stage dependencies
    - No Github integration similar to GitLab
 
 2. **Future Enhancements**:
 
-   - Parallel job execution within stages
    - Persistent services support
    - Git branch switching for cloned repositories via `--remote` command
    - Alias support for remote repository URLs
