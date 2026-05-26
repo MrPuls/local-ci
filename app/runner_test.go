@@ -103,3 +103,48 @@ func TestHasDetached(t *testing.T) {
 		t.Error("expected true when any job has parallel:true")
 	}
 }
+
+func TestHasMatrixVariants(t *testing.T) {
+	if hasMatrixVariants(nil) {
+		t.Error("expected false for nil jobs")
+	}
+	if hasMatrixVariants([]config.JobConfig{{Name: "a"}, {Name: "b"}}) {
+		t.Error("expected false when no variant present")
+	}
+	if !hasMatrixVariants([]config.JobConfig{{Name: "a"}, {Name: "v", MatrixGroup: "B"}}) {
+		t.Error("expected true when any job has MatrixGroup set")
+	}
+}
+
+func TestFindMatrixGroupEnd(t *testing.T) {
+	jobs := []config.JobConfig{
+		{Name: "a"},                              // 0: plain
+		{Name: "v1", MatrixGroup: "B"},           // 1: B start
+		{Name: "v2", MatrixGroup: "B"},           // 2: B
+		{Name: "v3", MatrixGroup: "B"},           // 3: B end
+		{Name: "c"},                              // 4: plain
+		{Name: "w1", MatrixGroup: "D"},           // 5: D start
+		{Name: "w2", MatrixGroup: "D"},           // 6: D end (last in slice)
+	}
+	if got := findMatrixGroupEnd(jobs, 1); got != 4 {
+		t.Errorf("expected end=4 for group B, got %d", got)
+	}
+	if got := findMatrixGroupEnd(jobs, 5); got != 7 {
+		t.Errorf("expected end=7 for group D at tail, got %d", got)
+	}
+	// Single-variant group.
+	single := []config.JobConfig{{Name: "v", MatrixGroup: "X"}, {Name: "a"}}
+	if got := findMatrixGroupEnd(single, 0); got != 1 {
+		t.Errorf("expected end=1 for singleton group, got %d", got)
+	}
+}
+
+func TestFindMatrixGroupEndDoesNotCoalesceAcrossGroups(t *testing.T) {
+	jobs := []config.JobConfig{
+		{Name: "v1", MatrixGroup: "A"},
+		{Name: "v2", MatrixGroup: "B"},
+	}
+	if got := findMatrixGroupEnd(jobs, 0); got != 1 {
+		t.Errorf("expected end=1, got %d (groups A and B must not coalesce)", got)
+	}
+}

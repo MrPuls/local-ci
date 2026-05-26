@@ -16,6 +16,7 @@
    - [Job-Specific Execution](#job-specific-execution)
    - [Stage-Specific Execution](#stage-specific-execution)
    - [Per-Job Parallel Flag](#per-job-parallel-flag)
+   - [Matrix Builds](#matrix-builds)
    - [Parallel Execution](#parallel-execution)
    - [Graceful Shutdown](#graceful-shutdown)
    - [Remote Clone and Execution](#remote-clone-and-execution)
@@ -336,6 +337,79 @@ In this example, `Build` and `Test` run sequentially in stage order, while `Lint
 
 - Detached jobs that share a cache key with sequential or other detached jobs may corrupt the cache through concurrent writes. Avoid sharing cache keys between jobs that can run at the same time.
 - The `.local-ci/` directory should be added to `.gitignore` so run logs are not committed.
+
+### Matrix Builds
+
+A job can declare a `matrix:` block to fan out into multiple variants, each running with a different combination of variable values. Each variant is its own independent job with the matrix values merged into its `variables` map.
+
+```yaml
+stages:
+  - test
+
+Test:
+  stage: test
+  image: golang:1.22
+  matrix:
+    - GO_VERSION: ["1.21", "1.22"]
+      OS: [linux, alpine]
+  script:
+    - go test ./...
+```
+
+The example above expands `Test` into four variants:
+- `Test_GO_VERSION.1.21_OS.alpine`
+- `Test_GO_VERSION.1.21_OS.linux`
+- `Test_GO_VERSION.1.22_OS.alpine`
+- `Test_GO_VERSION.1.22_OS.linux`
+
+Each runs with `GO_VERSION` and `OS` set in its environment.
+
+#### Syntax
+
+`matrix:` is a list of entries. Each entry is a map of variable name to value(s). Within an entry:
+- A scalar value (`PROVIDER: aws`) becomes a single fixed value.
+- A list value (`REGION: [us-east, eu-west]`) is expanded as part of the cartesian product.
+
+Multiple entries let you build asymmetric matrices (different variable sets per entry):
+
+```yaml
+Deploy:
+  matrix:
+    - PROVIDER: aws
+      REGION: [us-east, us-west]
+    - PROVIDER: ovh
+      REGION: [eu-west]
+```
+
+This produces three variants — `aws/us-east`, `aws/us-west`, and `ovh/eu-west` — without generating the `ovh/us-east` combination.
+
+#### Variant naming
+
+Variants are named `<JobName>_<key>.<value>_<key>.<value>...` with keys sorted alphabetically for determinism. Matrix keys and values must match `[a-zA-Z0-9_.-]+` — invalid characters are rejected at config load. This restriction exists because variant names are used directly as Docker container names.
+
+#### Execution
+
+How variants run depends on the active mode:
+
+| Mode | Behavior |
+|---|---|
+| Default sequential | Variants form a **parallel barrier**: they run concurrently with a live status board, and the sequential chain waits for the whole group to finish before continuing. |
+| `parallel: true` on parent | Variants inherit the flag and run as **detached** background jobs individually (no barrier). |
+| `--parallel` | Variants join the global parallel pool — no special treatment. |
+| `--parallel-stages` | Variants stay in their parent's stage group. |
+
+#### Failure semantics
+
+Within a barrier, all variants run to completion even if one fails. The aggregate error stops the sequential chain after the barrier finishes. Detached variants follow the standard detached behavior (their failure does not stop sequential jobs).
+
+#### Filtering
+
+`--job Test` selects the base job before expansion, so all of `Test`'s variants run. To run just one variant, you would need to write a config without that matrix entry — there is no per-variant CLI selector in this version.
+
+#### Notes
+
+- Variants of the same job share container resources only if they happen to share a cache key. Because variants run concurrently in default and parallel modes, **avoid sharing cache keys across variants** unless they truly write disjoint paths.
+- Matrix output (in default mode) lives in `.local-ci/logs/<timestamp>/<variant-name>.log`, same as parallel mode. Diagnostic logs go to `pipeline.log` in the same directory.
 
 ### Parallel Execution
 
