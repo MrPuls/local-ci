@@ -68,10 +68,16 @@ Local CI is built using a clean, modular architecture:
 The tool operates in several stages:
 
 ### 1. Configuration Loading and Validation
-- Reads and parses the YAML configuration
+- Reads and parses the main YAML configuration
+- Recursively loads any `include:`d files (paths resolved relative to the including file; cycles rejected)
+- Merges included configs into the main config with main-wins semantics
+- Resolves `extends:` chains on every non-template job (left-to-right template merge, then local fields override)
+- Drops `.dot-prefixed` templates from the final job list
 - Validates required fields and relationships
 - Resolves global and job-specific variables
 - Creates job models for execution
+
+See the [YAML Configuration Reference — Templates](yaml-reference.md#templates) for the user-facing semantics of `include:` and `extends:`.
 
 ### 2. Pipeline Orchestration
 - Organizes jobs by stages

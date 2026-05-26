@@ -52,12 +52,15 @@ func TestJobsByStageNoJobs(t *testing.T) {
 	}
 }
 
+func ptrTrue() *bool  { v := true; return &v }
+func ptrFalse() *bool { v := false; return &v }
+
 func TestPartitionByParallel(t *testing.T) {
 	jobs := []config.JobConfig{
 		{Name: "a"},
-		{Name: "b", Parallel: true},
+		{Name: "b", Parallel: ptrTrue()},
 		{Name: "c"},
-		{Name: "d", Parallel: true},
+		{Name: "d", Parallel: ptrTrue()},
 		{Name: "e"},
 	}
 
@@ -73,8 +76,8 @@ func TestPartitionByParallel(t *testing.T) {
 
 func TestPartitionByParallelAllDetached(t *testing.T) {
 	jobs := []config.JobConfig{
-		{Name: "a", Parallel: true},
-		{Name: "b", Parallel: true},
+		{Name: "a", Parallel: ptrTrue()},
+		{Name: "b", Parallel: ptrTrue()},
 	}
 	seq, det := partitionByParallel(jobs)
 	if len(seq) != 0 {
@@ -92,6 +95,15 @@ func TestPartitionByParallelEmpty(t *testing.T) {
 	}
 }
 
+func TestPartitionByParallelExplicitFalseIsSequential(t *testing.T) {
+	jobs := []config.JobConfig{{Name: "a", Parallel: ptrFalse()}}
+	seq, det := partitionByParallel(jobs)
+	if len(seq) != 1 || len(det) != 0 {
+		t.Errorf("explicit parallel:false should be sequential, got seq=%v det=%v",
+			jobNames(seq), jobNames(det))
+	}
+}
+
 func TestHasDetached(t *testing.T) {
 	if hasDetached(nil) {
 		t.Error("expected false for nil jobs")
@@ -99,8 +111,11 @@ func TestHasDetached(t *testing.T) {
 	if hasDetached([]config.JobConfig{{Name: "a"}, {Name: "b"}}) {
 		t.Error("expected false when no job has parallel:true")
 	}
-	if !hasDetached([]config.JobConfig{{Name: "a"}, {Name: "b", Parallel: true}}) {
+	if !hasDetached([]config.JobConfig{{Name: "a"}, {Name: "b", Parallel: ptrTrue()}}) {
 		t.Error("expected true when any job has parallel:true")
+	}
+	if hasDetached([]config.JobConfig{{Name: "a"}, {Name: "b", Parallel: ptrFalse()}}) {
+		t.Error("expected false when parallel is explicit false")
 	}
 }
 

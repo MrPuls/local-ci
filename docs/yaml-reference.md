@@ -10,6 +10,7 @@
     - [remote provider (global level)](#remote-provider-global-level)
     - [bootstrap](#bootstrap)
     - [cleanup](#cleanup)
+    - [include](#include)
   - [Job Configuration](#job-configuration)
     - [stage](#stage)
     - [image](#image)
@@ -22,7 +23,9 @@
     - [job_cleanup](#job_cleanup)
     - [parallel](#parallel)
     - [matrix](#matrix)
+    - [extends](#extends)
 - [Variable Handling](#variable-handling)
+- [Templates](#templates)
 - [Network Configuration](#network-configuration)
 - [Complete Example](#complete-example)
 
@@ -142,6 +145,21 @@ Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, c
     run:
       - docker compose -f docker-compose.yml down
     timeout: 5
+  ```
+
+#### include
+- Required: No
+- Type: List of file paths (strings)
+- Description: Pulls additional YAML files into the configuration. Each included file is parsed and its top-level keys (jobs, templates, global variables, stages, bootstrap/cleanup, remote provider) are merged into the main config. The main file always wins on conflicts; among multiple includes, later entries win over earlier ones. Includes can themselves contain `include:` directives — those are resolved recursively, with cycle detection.
+
+  Paths are resolved **relative to the file that contains the `include:` directive**, not the working directory. Absolute paths are accepted as-is.
+
+  Typical use: factor shared job templates, environment variables, or full stages into a `.ci/` directory and pull them into your main `.local-ci.yaml`. See [Templates](#templates) for the patterns this enables.
+- Example:
+  ```yaml
+  include:
+    - .ci/templates.yaml
+    - .ci/jobs/test.yaml
   ```
 
 ### Job Configuration
@@ -335,6 +353,33 @@ Important: Job cleanup runs on the host, not inside a container. Requires job_bo
 
 Important: Variants of a job run concurrently in most modes, so avoid sharing a `cache.key` across them unless they write to truly disjoint paths — concurrent writes to the same Docker volume can corrupt the cache.
 
+#### extends
+- Required: No
+- Type: Either a single string or a list of strings, each naming a template (or another job) defined elsewhere in the merged configuration.
+- Description: Inherits fields from one or more templates. Templates are applied left-to-right, and the consuming job's own fields override any inherited values. Templates can themselves extend other templates — the chain is resolved recursively, with cycle detection.
+
+  Most users reference templates declared with a leading dot (e.g. `.go-base`); those names are reserved for templates and are never executed as jobs. You can also extend a regular (non-template) job — it's just a name lookup in the merged config.
+
+  See [Templates](#templates) for the full set of merge rules and patterns.
+- Example (single template):
+  ```yaml
+  Build:
+    extends: .go-base
+    stage: build
+    script:
+      - go build ./...
+  ```
+- Example (multiple templates, later wins on conflict):
+  ```yaml
+  Test:
+    extends:
+      - .go-base
+      - .with-db
+    stage: test
+    script:
+      - go test ./...
+  ```
+
 ## Variable Handling
 
 Global variables and job-specific variables are merged, with job-specific variables taking precedence:
@@ -375,6 +420,145 @@ test_job:
   script:
     - curl http://localhost:8080  # Direct access to host services
 ```
+
+## Templates
+
+Templates let you factor out common job configuration once and reuse it across many jobs. A template is just a job-shaped block whose name starts with a dot (`.`). The leading dot marks it as "not a real job": it is parsed and made available as a target for `extends:`, but it is never executed.
+
+### Defining a template
+
+A template can live in the main config or in any included file. It looks exactly like a job, but its name begins with `.`:
+
+```yaml
+.go-base:
+  image: golang:1.22
+  workdir: /app
+  cache:
+    key: go-mod-cache
+    paths:
+      - /go/pkg/mod
+  variables:
+    GOFLAGS: "-count=1"
+```
+
+A template does not need to be complete (it can omit `stage`, `script`, etc.) — those fields are expected to come from the consuming job.
+
+### Consuming a template
+
+A job references one or more templates via `extends:`. Fields from templates flow into the job, and the job's own fields override them on conflict:
+
+```yaml
+Build:
+  extends: .go-base
+  stage: build
+  script:
+    - go build ./...
+```
+
+### Sharing templates across files
+
+Put templates in a dedicated file and pull it in with `include:`. Paths resolve relative to the file containing the `include:` directive.
+
+```yaml
+# .ci/templates.yaml
+.go-base:
+  image: golang:1.22
+  workdir: /app
+
+.with-db:
+  job_bootstrap:
+    run:
+      - docker compose -f docker-compose.test.yml up -d
+    timeout: 3
+  job_cleanup:
+    run:
+      - docker compose -f docker-compose.test.yml down
+    timeout: 2
+```
+
+```yaml
+# .local-ci.yaml
+include:
+  - .ci/templates.yaml
+
+stages:
+  - build
+  - test
+
+Build:
+  extends: .go-base
+  stage: build
+  script:
+    - go build ./...
+
+Test:
+  extends:
+    - .go-base
+    - .with-db
+  stage: test
+  script:
+    - go test ./...
+```
+
+### Merge rules
+
+How a field flows from template to job depends on its type:
+
+| Field type | Rule |
+|---|---|
+| Scalars (`image`, `stage`, `workdir`) | Local non-empty value overrides template. |
+| Lists (`script`, `cache.paths`, `matrix`, `run` arrays) | If the job declares the list at all, it **replaces** the template's list entirely. |
+| `variables` map | Deep merged: keys from the template are inherited, keys defined locally override per key. |
+| Nested objects (`cache`, `network`, `job_bootstrap`, `job_cleanup`) | Replaced atomically when the job defines its own. |
+| `parallel` | Inherited from the template unless the job sets `parallel:` itself. A job can explicitly set `parallel: false` to opt out of a template that enabled it. |
+
+### Multiple `extends:` ordering
+
+When `extends:` is a list, templates are applied left-to-right. The rightmost template wins on conflicts, and the consuming job wins over all of them:
+
+```yaml
+.a:
+  image: alpine
+  variables:
+    X: from-a
+
+.b:
+  image: ubuntu
+  variables:
+    X: from-b
+    Y: only-in-b
+
+Job:
+  extends: [.a, .b]
+  script:
+    - echo $X $Y
+# Effective image: ubuntu, X=from-b, Y=only-in-b
+```
+
+### Chained templates
+
+Templates can themselves use `extends:`. The chain is resolved recursively, so you can build layered hierarchies:
+
+```yaml
+.base:
+  image: alpine
+
+.with-curl:
+  extends: .base
+  script:
+    - apk add curl
+
+Job:
+  extends: .with-curl
+  stage: build
+# Resolved: image=alpine, script=[apk add curl], stage=build
+```
+
+Cycles are rejected at config load time.
+
+### Naming conflicts
+
+If two files (or the main file and an include) define a job or template with the same name, the main config wins. Among multiple includes, later entries in the `include:` list win over earlier ones. There is no merging across same-named entries — the loser is dropped entirely.
 
 ## Complete Example
 
