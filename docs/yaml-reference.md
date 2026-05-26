@@ -20,6 +20,8 @@
     - [cache](#cache)
     - [job_bootstrap](#job_bootstrap)
     - [job_cleanup](#job_cleanup)
+    - [parallel](#parallel)
+    - [matrix](#matrix)
 - [Variable Handling](#variable-handling)
 - [Network Configuration](#network-configuration)
 - [Complete Example](#complete-example)
@@ -62,6 +64,10 @@ job_name:
     run:
       - teardown_command
     timeout: 5
+  parallel: true   # Optional: detach this job from the sequential chain
+  matrix:          # Optional: fan this job out into variants
+    - VAR_A: [value1, value2]
+      VAR_B: [value3, value4]
   script:
     - command1
     - command2
@@ -277,6 +283,58 @@ Important: Job cleanup runs on the host, not inside a container. Requires job_bo
       - echo "running tests"
   ```
 
+#### parallel
+- Required: No
+- Type: Boolean
+- Default: `false`
+- Description: When `true`, this job runs detached in the background at pipeline start, while other (non-parallel) jobs continue running sequentially. The pipeline waits for all detached jobs to finish before exiting, but a detached job's failure does not stop the sequential chain. Detached jobs write their output to per-job log files instead of streaming to stdout. Has no effect under `--parallel` or `--parallel-stages` — those flags have their own execution model and the keyword is ignored silently. See [Per-Job Parallel Flag](tech-reference.md#per-job-parallel-flag) for full execution details.
+- Example:
+  ```yaml
+  Lint:
+    stage: build
+    image: golang:1.22
+    parallel: true
+    script:
+      - go vet ./...
+  ```
+
+#### matrix
+- Required: No
+- Type: List of entries. Each entry is a map of variable name to value(s); values can be a scalar or a list of scalars.
+- Description: Fans the job out into multiple variants — one per combination of variable values. Each variant runs as an independent job with the matrix values merged into its `variables`. Within a single entry, list values are expanded as the cartesian product. Multiple entries produce independent groups of variants, which is how you build asymmetric matrices (different variable sets per entry).
+
+  Variants are automatically named `<JobName>_<key>.<value>_<key>.<value>...` with keys sorted alphabetically for determinism. This name is also used as the Docker container name, so matrix keys and values must match `[a-zA-Z0-9_.-]+` — unsafe characters are rejected at config load.
+
+  By default, the variants of a single job run concurrently and the sequential pipeline waits for the whole group to finish (a "barrier"). Combining `matrix:` with `parallel: true` makes every variant detached individually — the pipeline does not wait between variants and the parent job's group runs in the background. Under `--parallel` and `--parallel-stages`, variants are just normal jobs that join the corresponding parallel pool. See [Matrix Builds](tech-reference.md#matrix-builds) for full execution semantics.
+- Example (single entry, full cartesian product):
+  ```yaml
+  Test:
+    stage: test
+    image: golang:1.22
+    matrix:
+      - GO_VERSION: ["1.21", "1.22"]
+        OS: [linux, alpine]
+    script:
+      - go test ./...
+  ```
+  Generates four variants: `Test_GO_VERSION.1.21_OS.alpine`, `Test_GO_VERSION.1.21_OS.linux`, `Test_GO_VERSION.1.22_OS.alpine`, `Test_GO_VERSION.1.22_OS.linux`.
+- Example (multiple entries, asymmetric):
+  ```yaml
+  Deploy:
+    stage: deploy
+    image: alpine
+    matrix:
+      - PROVIDER: aws
+        REGION: [us-east, us-west]
+      - PROVIDER: ovh
+        REGION: [eu-west]
+    script:
+      - ./deploy.sh
+  ```
+  Generates three variants: `Deploy_PROVIDER.aws_REGION.us-east`, `Deploy_PROVIDER.aws_REGION.us-west`, `Deploy_PROVIDER.ovh_REGION.eu-west`. The `ovh/us-east` combination is not generated because each entry is its own product.
+
+Important: Variants of a job run concurrently in most modes, so avoid sharing a `cache.key` across them unless they write to truly disjoint paths — concurrent writes to the same Docker volume can corrupt the cache.
+
 ## Variable Handling
 
 Global variables and job-specific variables are merged, with job-specific variables taking precedence:
@@ -352,6 +410,14 @@ Build:
     - npm install
     - npm run build
 
+Lint:
+  stage: build
+  image: node:16
+  workdir: /app
+  parallel: true       # Run in background; do not block Test from starting
+  script:
+    - npm run lint
+
 Test:
   stage: test
   image: node:16
@@ -370,6 +436,8 @@ Test:
     run:
       - docker compose -f docker-compose.test.yml down
     timeout: 2
+  matrix:              # Fan out across Node versions
+    - NODE_VERSION: ["16", "18", "20"]
   script:
     - npm test
     - curl http://host.docker.internal:3000/health

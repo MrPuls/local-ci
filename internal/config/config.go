@@ -45,6 +45,36 @@ type JobCleanupConfig struct {
 	Timeout int      `yaml:"timeout,omitempty"`
 }
 
+type MatrixEntry map[string][]string
+
+func (m *MatrixEntry) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("matrix entry must be a map of variables to values")
+	}
+	result := make(MatrixEntry)
+	for i := 0; i < len(node.Content); i += 2 {
+		keyNode := node.Content[i]
+		valNode := node.Content[i+1]
+		var values []string
+		switch valNode.Kind {
+		case yaml.ScalarNode:
+			values = []string{valNode.Value}
+		case yaml.SequenceNode:
+			for _, v := range valNode.Content {
+				if v.Kind != yaml.ScalarNode {
+					return fmt.Errorf("matrix value for %q must be a scalar or list of scalars", keyNode.Value)
+				}
+				values = append(values, v.Value)
+			}
+		default:
+			return fmt.Errorf("matrix value for %q must be a scalar or list of scalars", keyNode.Value)
+		}
+		result[keyNode.Value] = values
+	}
+	*m = result
+	return nil
+}
+
 type JobConfig struct {
 	Name         string              `yaml:"-"`
 	Image        string              `yaml:"image"`
@@ -57,6 +87,8 @@ type JobConfig struct {
 	JobBootstrap *JobBootstrapConfig `yaml:"job_bootstrap,omitempty"`
 	JobCleanup   *JobCleanupConfig   `yaml:"job_cleanup,omitempty"`
 	Parallel     bool                `yaml:"parallel,omitempty"`
+	Matrix       []MatrixEntry       `yaml:"matrix,omitempty"`
+	MatrixGroup  string              `yaml:"-"`
 }
 
 type Config struct {

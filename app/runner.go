@@ -90,12 +90,82 @@ func (r *Runner) Run() error {
 }
 
 func (r *Runner) runSequentially(executor *docker.Executor) error {
-	for _, j := range r.jobs {
+	var logDir string
+	if hasMatrixVariants(r.jobs) {
+		d, err := fs.MakeRunLogDir()
+		if err != nil {
+			return err
+		}
+		logDir = d
+		fmt.Printf("Matrix variants will log to %s\n", logDir)
+	}
+	return r.iterateSequential(executor, r.jobs, logDir)
+}
+
+// iterateSequential walks jobs in order, streaming each non-matrix job to
+// stdout and coalescing consecutive jobs that share a MatrixGroup into a
+// parallel barrier. logDir must be non-empty when the slice contains any
+// matrix variants.
+func (r *Runner) iterateSequential(executor *docker.Executor, jobs []config.JobConfig, logDir string) error {
+	i := 0
+	for i < len(jobs) {
+		j := jobs[i]
+		if j.MatrixGroup != "" {
+			end := findMatrixGroupEnd(jobs, i)
+			if err := r.runMatrixBarrier(executor, jobs[i:end], logDir); err != nil {
+				return err
+			}
+			i = end
+			continue
+		}
 		if err := r.runJob(executor, j, os.Stdout); err != nil {
 			return err
 		}
+		i++
 	}
 	return nil
+}
+
+// runMatrixBarrier runs a contiguous group of matrix variants in parallel,
+// presenting a status board on stdout and routing internal diagnostic logs to
+// the run's pipeline.log so they don't fight the board for the terminal.
+func (r *Runner) runMatrixBarrier(executor *docker.Executor, group []config.JobConfig, logDir string) error {
+	pipelineLog, err := os.OpenFile(filepath.Join(logDir, "pipeline.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer pipelineLog.Close()
+	prevLogOut := log.Writer()
+	log.SetOutput(pipelineLog)
+	defer log.SetOutput(prevLogOut)
+
+	fmt.Printf("\nMatrix [%s]:\n", group[0].MatrixGroup)
+	board := NewStatusBoard(jobNames(group), os.Stdout)
+	board.Start()
+	runErr := r.runJobsParallel(executor, group, logDir, board)
+	board.Stop()
+	return runErr
+}
+
+// findMatrixGroupEnd returns end such that jobs[start:end] are all the
+// consecutive jobs sharing jobs[start].MatrixGroup. Assumes jobs[start] has
+// a non-empty MatrixGroup.
+func findMatrixGroupEnd(jobs []config.JobConfig, start int) int {
+	group := jobs[start].MatrixGroup
+	end := start + 1
+	for end < len(jobs) && jobs[end].MatrixGroup == group {
+		end++
+	}
+	return end
+}
+
+func hasMatrixVariants(jobs []config.JobConfig) bool {
+	for _, j := range jobs {
+		if j.MatrixGroup != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func hasDetached(jobs []config.JobConfig) bool {
@@ -156,13 +226,7 @@ func (r *Runner) runSequentialWithDetached(executor *docker.Executor) error {
 		}(i, j)
 	}
 
-	var seqErr error
-	for _, j := range sequential {
-		if err := r.runJob(executor, j, os.Stdout); err != nil {
-			seqErr = err
-			break
-		}
-	}
+	seqErr := r.iterateSequential(executor, sequential, logDir)
 
 	if len(detached) > 0 {
 		fmt.Println("Waiting for detached jobs to finish...")
@@ -391,16 +455,15 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 
 	// TODO: This feels bad man...
 
-	if len(options.jobNames) != 0 {
+	var filtered []config.JobConfig
+	switch {
+	case len(options.jobNames) != 0:
 		for _, job := range r.cfg.Jobs {
 			if slices.Contains(options.jobNames, job.Name) {
-				r.jobs = append(r.jobs, job)
+				filtered = append(filtered, job)
 			}
 		}
-		return nil
-	}
-
-	if len(options.stages) != 0 {
+	case len(options.stages) != 0:
 		for _, s := range options.stages {
 			if !slices.Contains(r.cfg.Stages, s) {
 				return fmt.Errorf("Requested stage %q is not present in config file: %q", s, r.cfg.FileName)
@@ -408,18 +471,25 @@ func (r *Runner) PrepareJobConfigs(options RunnerOptions) error {
 		}
 		for _, job := range r.cfg.Jobs {
 			if slices.Contains(options.stages, job.Stage) {
-				r.jobs = append(r.jobs, job)
+				filtered = append(filtered, job)
 			}
 		}
-		return nil
+	default:
+		for _, s := range r.cfg.Stages {
+			for _, job := range r.cfg.Jobs {
+				if job.Stage == s {
+					filtered = append(filtered, job)
+				}
+			}
+		}
 	}
 
-	for _, s := range r.cfg.Stages {
-		for _, job := range r.cfg.Jobs {
-			if job.Stage == s {
-				r.jobs = append(r.jobs, job)
-			}
+	for _, job := range filtered {
+		variants, err := config.ExpandMatrix(job)
+		if err != nil {
+			return err
 		}
+		r.jobs = append(r.jobs, variants...)
 	}
 	return nil
 }
