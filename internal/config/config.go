@@ -241,13 +241,19 @@ func (c *Config) LoadConfig() error {
 	if err != nil {
 		return fmt.Errorf("[Config] resolve config path %q: %w", c.FileName, err)
 	}
-	loaded, err := loadConfigWithIncludes(absPath, map[string]bool{})
+	directStages := make(map[string][]stageSource)
+	loaded, err := loadConfigWithIncludes(absPath, map[string]bool{}, directStages)
 	if err != nil {
 		return fmt.Errorf(
 			"[Config] error reading config file, please make sure that all stages are correctly defined\n %w", err)
 	}
 	*c = *loaded
 	c.FileName = absPath
+	expandedStages, err := expandStagePlaceholders(c.Stages, directStages)
+	if err != nil {
+		return fmt.Errorf("[Config] %w", err)
+	}
+	c.Stages = expandedStages
 	if err := resolveAllExtends(c); err != nil {
 		return fmt.Errorf("[Config] error resolving template extends: %w", err)
 	}

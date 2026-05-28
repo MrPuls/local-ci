@@ -26,6 +26,7 @@
     - [extends](#extends)
 - [Variable Handling](#variable-handling)
 - [Templates](#templates)
+- [Stage Placeholders](#stage-placeholders)
 - [Network Configuration](#network-configuration)
 - [Complete Example](#complete-example)
 
@@ -91,6 +92,7 @@ job_name:
     - test
     - deploy
   ```
+- An entry beginning with `.` is a **stage placeholder** that splices in the stages declared by an included file at that position. See [Stage Placeholders](#stage-placeholders). (Because of this, real stage names may not start with `.`.)
 
 #### variables (global level)
 - Required: No
@@ -154,7 +156,9 @@ Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, c
 
   Paths are resolved **relative to the file that contains the `include:` directive**, not the working directory. Absolute paths are accepted as-is.
 
-  Typical use: factor shared job templates, environment variables, or full stages into a `.ci/` directory and pull them into your main `.local-ci.yaml`. See [Templates](#templates) for the patterns this enables.
+  Stages are a special case: when the main file declares `stages:`, it owns the ordered list and includes' stages are ignored unless placed explicitly with a [stage placeholder](#stage-placeholders). When the main file declares no stages, an included file's stages are used.
+
+  Typical use: factor shared job templates, environment variables, or full stages into a `.ci/` directory and pull them into your main `.local-ci.yaml`. See [Templates](#templates) and [Stage Placeholders](#stage-placeholders) for the patterns this enables.
 - Example:
   ```yaml
   include:
@@ -382,12 +386,22 @@ Important: Variants of a job run concurrently in most modes, so avoid sharing a 
 
 ## Variable Handling
 
-Global variables and job-specific variables are merged, with job-specific variables taking precedence:
+When the same variable name is defined in more than one place, it is resolved by this precedence, highest first:
+
+1. **CLI `--env`** variables (passed at runtime, e.g. `local-ci run --env REGION=us`)
+2. **Job-local** variables (defined directly under the job's `variables:`)
+3. **Template** variables (inherited via `extends:`)
+4. **Global** variables (top-level `variables:`)
+5. **Remote provider** variables (fetched from a configured remote provider)
+
+The reason templates outrank globals is the order of resolution: `extends:` is applied at config-load time, so template variables are merged into the job *before* global variables are layered on. Global variables only fill in names the job does not already have (whether from its own `variables:` or from a template). Remote-provider variables are treated as globals and lose to explicit global `variables:` on conflict. CLI `--env` values are applied last of all, so they override everything.
+
+Basic case — job-local overrides global:
 
 ```yaml
 variables:
   FOO: "BAR"  # Global variable
-  
+
 test_job:
   variables:
     FOO: "BAZ"  # Overrides the global value
@@ -395,6 +409,35 @@ test_job:
   script:
     - echo $FOO     # Outputs: BAZ
     - echo $LOCAL   # Outputs: VALUE
+```
+
+Template variables also override globals — a same-named global does **not** win over a value inherited from a template:
+
+```yaml
+variables:
+  REGION: "global-region"   # Global variable
+
+.aws-base:
+  image: alpine
+  variables:
+    REGION: "template-region"  # Inherited by jobs that extend this
+
+Deploy:
+  extends: .aws-base
+  stage: deploy
+  script:
+    - echo $REGION   # Outputs: template-region (template beats global)
+```
+
+To override a template variable, set it locally on the job (job-local is the highest precedence):
+
+```yaml
+Deploy:
+  extends: .aws-base
+  variables:
+    REGION: "job-region"   # Wins over both template and global
+  script:
+    - echo $REGION   # Outputs: job-region
 ```
 
 ## Network Configuration
@@ -559,6 +602,51 @@ Cycles are rejected at config load time.
 ### Naming conflicts
 
 If two files (or the main file and an include) define a job or template with the same name, the main config wins. Among multiple includes, later entries in the `include:` list win over earlier ones. There is no merging across same-named entries — the loser is dropped entirely.
+
+## Stage Placeholders
+
+By default, when the main file declares `stages:`, it owns the full ordered stage list and an included file's `stages:` are ignored. Stage placeholders let an included file declare its own stages while the main file controls **where** those stages land in the overall order — without the main file needing to know the included stage names.
+
+A `stages:` entry beginning with `.` is a placeholder that names an included file. At load time it is replaced, in place, by the stages that file declares.
+
+```yaml
+# .ci/integration.yaml
+stages:
+  - integration-setup
+  - integration-run
+```
+
+```yaml
+# .local-ci.yaml
+stages:
+  - build
+  - .integration     # spliced from .ci/integration.yaml
+  - deploy
+
+include:
+  - .ci/integration.yaml
+```
+
+The resolved stage list becomes:
+
+```
+build
+integration-setup
+integration-run
+deploy
+```
+
+Jobs bind to stages by name as usual, so a job with `stage: integration-run` runs at the spliced position. If `.ci/integration.yaml` is later changed to rename its stages, the main file does not need to change.
+
+### Rules
+
+- **Matching**: `.integration` matches the included file `integration.yaml` by basename (the directory is ignored). The extension is optional — both `.integration` and `.integration.yaml` work.
+- **Ambiguity**: if two included files share a basename (e.g. `a/integration.yaml` and `b/integration.yaml`), `.integration` errors and asks you to use the full file name. If the full file name is also ambiguous (same name in different directories), you must rename one of the files.
+- **Unknown placeholder**: a placeholder with no matching include is an error.
+- **Empty file**: a placeholder for a file that declares no stages contributes nothing (it is simply removed) — an empty spliced stage is harmless.
+- **De-duplication**: if a stage name appears both as a real stage and via a splice, the first occurrence is kept.
+- **Scope**: placeholders are only resolved in the **main** config file. An included file that declares its own placeholders is an error in this version.
+- **Reserved prefix**: because `.` marks a placeholder, real stage names may not start with `.`.
 
 ## Complete Example
 

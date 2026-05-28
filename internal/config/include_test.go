@@ -53,7 +53,7 @@ Build:
   script:
     - echo hello
 `)
-	cfg, err := loadConfigWithIncludes(main, map[string]bool{})
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ include:
 stages:
   - build
 `)
-	cfg, err := loadConfigWithIncludes(main, map[string]bool{})
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -102,7 +102,7 @@ include:
 stages:
   - build
 `)
-	cfg, err := loadConfigWithIncludes(main, map[string]bool{})
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -122,12 +122,118 @@ include:
 include:
   - a.yaml
 `)
-	_, err := loadConfigWithIncludes(a, map[string]bool{})
+	_, err := loadConfigWithIncludes(a, map[string]bool{}, nil)
 	if err == nil {
 		t.Fatal("expected circular include error")
 	}
 	if !strings.Contains(err.Error(), "circular") {
 		t.Errorf("expected error to mention 'circular', got %v", err)
+	}
+}
+
+func TestLoadConfigLaterIncludeWinsOnConflict(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "first.yaml", `
+Build:
+  image: from-first
+  stage: build
+  script:
+    - first
+`)
+	writeFile(t, dir, "second.yaml", `
+Build:
+  image: from-second
+  stage: build
+  script:
+    - second
+`)
+	// Main does not define Build, so include precedence decides the winner.
+	main := writeFile(t, dir, "main.yaml", `
+stages:
+  - build
+
+include:
+  - first.yaml
+  - second.yaml
+`)
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var build *JobConfig
+	for i := range cfg.Jobs {
+		if cfg.Jobs[i].Name == "Build" {
+			build = &cfg.Jobs[i]
+		}
+	}
+	if build == nil {
+		t.Fatal("Build job missing")
+	}
+	if build.Image != "from-second" {
+		t.Errorf("expected later include (second.yaml) to win, got image %q", build.Image)
+	}
+}
+
+func TestLoadConfigLaterIncludeWinsGlobalVariable(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "first.yaml", "variables:\n  X: from-first\n")
+	writeFile(t, dir, "second.yaml", "variables:\n  X: from-second\n")
+	main := writeFile(t, dir, "main.yaml", `
+stages:
+  - build
+
+include:
+  - first.yaml
+  - second.yaml
+`)
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GlobalVariables["X"] != "from-second" {
+		t.Errorf("expected later include's global var to win, got %q", cfg.GlobalVariables["X"])
+	}
+}
+
+func TestLoadConfigDiamondIncludeAllowed(t *testing.T) {
+	// main -> [a, b]; a -> shared; b -> shared. The shared file is pulled in
+	// via two branches but that is not a cycle and must not error.
+	dir := t.TempDir()
+	writeFile(t, dir, "shared.yaml", ".shared:\n  image: alpine\n")
+	writeFile(t, dir, "a.yaml", `
+include:
+  - shared.yaml
+
+.a:
+  image: alpine
+`)
+	writeFile(t, dir, "b.yaml", `
+include:
+  - shared.yaml
+
+.b:
+  image: alpine
+`)
+	main := writeFile(t, dir, "main.yaml", `
+stages:
+  - build
+
+include:
+  - a.yaml
+  - b.yaml
+`)
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
+	if err != nil {
+		t.Fatalf("diamond include should not error, got: %v", err)
+	}
+	count := 0
+	for _, n := range jobNamesList(cfg.Jobs) {
+		if n == ".shared" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected .shared to appear exactly once after dedup, got %d", count)
 	}
 }
 
@@ -153,7 +259,7 @@ Build:
   script:
     - main
 `)
-	cfg, err := loadConfigWithIncludes(main, map[string]bool{})
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -189,7 +295,7 @@ variables:
   X: from-main
   ONLY_IN_MAIN: yes
 `)
-	cfg, err := loadConfigWithIncludes(main, map[string]bool{})
+	cfg, err := loadConfigWithIncludes(main, map[string]bool{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

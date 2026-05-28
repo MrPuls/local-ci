@@ -10,12 +10,24 @@ import (
 
 // loadConfigWithIncludes reads the file at absPath, recursively loads any
 // `include:`d files relative to absPath's directory, and merges the resulting
-// configs with main-wins semantics.
-func loadConfigWithIncludes(absPath string, visited map[string]bool) (*Config, error) {
-	if visited[absPath] {
+// configs. The including file wins over all of its includes; among multiple
+// includes, later entries win over earlier ones.
+//
+// inProgress tracks the files on the current load path so true cycles are
+// rejected while diamond includes (the same file pulled in via two different
+// branches) are allowed.
+//
+// directStages is non-nil only for the top-level (main config) call. When set,
+// each direct include's resolved stages are recorded into it so the main
+// file's stage placeholders can be expanded afterward. Recursive calls pass
+// nil, which also marks them as non-main: a non-main file is not allowed to
+// declare stage placeholders.
+func loadConfigWithIncludes(absPath string, inProgress map[string]bool, directStages map[string][]stageSource) (*Config, error) {
+	if inProgress[absPath] {
 		return nil, fmt.Errorf("circular include: %s already in load chain", absPath)
 	}
-	visited[absPath] = true
+	inProgress[absPath] = true
+	defer delete(inProgress, absPath)
 
 	yamlFile, err := os.ReadFile(absPath)
 	if err != nil {
@@ -26,13 +38,22 @@ func loadConfigWithIncludes(absPath string, visited map[string]bool) (*Config, e
 		return nil, fmt.Errorf("parse include %q: %w", absPath, err)
 	}
 
+	if directStages == nil && hasStagePlaceholder(cfg.Stages) {
+		return nil, fmt.Errorf("stage placeholders are only supported in the main config file, found in %q", absPath)
+	}
+
 	baseDir := filepath.Dir(absPath)
-	for _, inc := range cfg.Include {
-		childAbs := resolveIncludePath(inc, baseDir)
-		child, err := loadConfigWithIncludes(childAbs, visited)
+	// Merge later includes first. mergeConfigInto keeps whatever the
+	// accumulator already has, so processing back-to-front makes a later
+	// include win over an earlier one on conflict, while the including file
+	// (already populated in cfg) still wins over every include.
+	for i := len(cfg.Include) - 1; i >= 0; i-- {
+		childAbs := resolveIncludePath(cfg.Include[i], baseDir)
+		child, err := loadConfigWithIncludes(childAbs, inProgress, nil)
 		if err != nil {
 			return nil, err
 		}
+		recordDirectStages(directStages, childAbs, child.Stages)
 		mergeConfigInto(cfg, child)
 	}
 	cfg.Include = nil

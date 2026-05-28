@@ -6,6 +6,38 @@ import (
 	"github.com/MrPuls/local-ci/internal/config"
 )
 
+func TestPrepareJobConfigsGlobalsDoNotOverrideJobVars(t *testing.T) {
+	// A variable already present on the job (whether job-local or inherited
+	// from a template during extends resolution) must beat a same-named
+	// global. Absent globals are still filled in.
+	r := &Runner{
+		cfg: &config.Config{
+			Stages:          []string{"build"},
+			GlobalVariables: map[string]string{"REGION": "global", "ONLY_GLOBAL": "g"},
+			Jobs: []config.JobConfig{
+				{
+					Name: "Build", Stage: "build", Image: "x", Script: []string{"s"},
+					Variables: map[string]string{"REGION": "job-or-template"},
+				},
+			},
+		},
+		jobs: make([]config.JobConfig, 0),
+	}
+	if err := r.PrepareJobConfigs(RunnerOptions{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(r.jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(r.jobs))
+	}
+	got := r.jobs[0].Variables
+	if got["REGION"] != "job-or-template" {
+		t.Errorf("expected existing job var to beat global, got %q", got["REGION"])
+	}
+	if got["ONLY_GLOBAL"] != "g" {
+		t.Errorf("expected absent global to be filled in, got %q", got["ONLY_GLOBAL"])
+	}
+}
+
 func TestJobsByStage(t *testing.T) {
 	r := &Runner{
 		cfg: &config.Config{

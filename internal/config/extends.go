@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -84,12 +85,9 @@ func mergeJobs(base, overlay JobConfig) JobConfig {
 
 	if base.Variables != nil {
 		copied := make(map[string]string, len(base.Variables))
-		for k, v := range base.Variables {
-			copied[k] = v
-		}
+		maps.Copy(copied, base.Variables)
 		out.Variables = copied
 	}
-
 	if overlay.Name != "" {
 		out.Name = overlay.Name
 	}
@@ -109,9 +107,7 @@ func mergeJobs(base, overlay JobConfig) JobConfig {
 		if out.Variables == nil {
 			out.Variables = make(map[string]string, len(overlay.Variables))
 		}
-		for k, v := range overlay.Variables {
-			out.Variables[k] = v
-		}
+		maps.Copy(out.Variables, overlay.Variables)
 	}
 	if overlay.Cache != nil {
 		out.Cache = overlay.Cache
