@@ -109,15 +109,16 @@ func TestExpandMatrixVariableIsolation(t *testing.T) {
 }
 
 func TestExpandMatrixPropagatesParallel(t *testing.T) {
+	parallelTrue := true
 	job := JobConfig{
 		Name:     "Test",
-		Parallel: true,
+		Parallel: &parallelTrue,
 		Matrix:   []MatrixEntry{{"X": {"a", "b"}}},
 	}
 	got, _ := ExpandMatrix(job)
 	for _, v := range got {
-		if !v.Parallel {
-			t.Errorf("variant %s: expected Parallel=true", v.Name)
+		if !v.IsParallel() {
+			t.Errorf("variant %s: expected IsParallel()=true", v.Name)
 		}
 	}
 }

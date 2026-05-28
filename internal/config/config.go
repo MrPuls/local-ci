@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
-	"os"
+	"path/filepath"
 	"slices"
 
 	"go.yaml.in/yaml/v4"
@@ -75,6 +75,24 @@ func (m *MatrixEntry) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+type ExtendsList []string
+
+func (e *ExtendsList) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		*e = []string{node.Value}
+	case yaml.SequenceNode:
+		var list []string
+		if err := node.Decode(&list); err != nil {
+			return fmt.Errorf("extends list: %w", err)
+		}
+		*e = list
+	default:
+		return fmt.Errorf("extends must be a string or list of strings")
+	}
+	return nil
+}
+
 type JobConfig struct {
 	Name         string              `yaml:"-"`
 	Image        string              `yaml:"image"`
@@ -86,9 +104,17 @@ type JobConfig struct {
 	Network      *NetworkConfig      `yaml:"network,omitempty"`
 	JobBootstrap *JobBootstrapConfig `yaml:"job_bootstrap,omitempty"`
 	JobCleanup   *JobCleanupConfig   `yaml:"job_cleanup,omitempty"`
-	Parallel     bool                `yaml:"parallel,omitempty"`
+	Parallel     *bool               `yaml:"parallel,omitempty"`
 	Matrix       []MatrixEntry       `yaml:"matrix,omitempty"`
 	MatrixGroup  string              `yaml:"-"`
+	Extends      ExtendsList         `yaml:"extends,omitempty"`
+}
+
+// IsParallel returns true only when the job has explicitly opted into the
+// per-job parallel mode (`parallel: true`). A nil pointer (no `parallel:`
+// key in YAML) or an explicit `parallel: false` both report false.
+func (j *JobConfig) IsParallel() bool {
+	return j.Parallel != nil && *j.Parallel
 }
 
 type Config struct {
@@ -100,6 +126,7 @@ type Config struct {
 	CLIVariables    map[string]string `yaml:"-"`
 	Bootstrap       *BootstrapConfig  `yaml:"bootstrap,omitempty"`
 	Cleanup         *CleanupConfig    `yaml:"cleanup,omitempty"`
+	Include         []string          `yaml:"include,omitempty"`
 }
 
 func NewConfig(file string) *Config {
@@ -110,7 +137,7 @@ func NewConfig(file string) *Config {
 
 func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	type Alias Config
-	nonJobFields := []string{"stages", "bootstrap", "cleanup", "variables", "remote_provider"}
+	nonJobFields := []string{"stages", "bootstrap", "cleanup", "variables", "remote_provider", "include"}
 	alias := (*Alias)(c) // to avoid recursion
 
 	var raw map[string]any
@@ -162,6 +189,16 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 		}
 	}
 
+	if includes, ok := raw["include"].([]any); ok {
+		for _, inc := range includes {
+			path, ok := inc.(string)
+			if !ok {
+				return fmt.Errorf("include entries must be file path strings")
+			}
+			alias.Include = append(alias.Include, path)
+		}
+	}
+
 	if provider, ok := raw["remote_provider"].(map[string]any); ok {
 		log.Println("Remote provider found, variables will be fetched from GitLab project...")
 		alias.RemoteProvider = &RemoteProvider{
@@ -192,11 +229,6 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 			}
 
 			job.Name = key
-
-			// Workdir default value setup
-			if job.Workdir == "" {
-				job.Workdir = "/"
-			}
 			alias.Jobs = append(alias.Jobs, job)
 		}
 	}
@@ -205,14 +237,25 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (c *Config) LoadConfig() error {
-	yamlFile, err := os.ReadFile(c.FileName)
+	absPath, err := filepath.Abs(c.FileName)
 	if err != nil {
-		return err
+		return fmt.Errorf("[Config] resolve config path %q: %w", c.FileName, err)
 	}
-	err = yaml.Unmarshal(yamlFile, c)
+	directStages := make(map[string][]stageSource)
+	loaded, err := loadConfigWithIncludes(absPath, map[string]bool{}, directStages)
 	if err != nil {
 		return fmt.Errorf(
 			"[Config] error reading config file, please make sure that all stages are correctly defined\n %w", err)
+	}
+	*c = *loaded
+	c.FileName = absPath
+	expandedStages, err := expandStagePlaceholders(c.Stages, directStages)
+	if err != nil {
+		return fmt.Errorf("[Config] %w", err)
+	}
+	c.Stages = expandedStages
+	if err := resolveAllExtends(c); err != nil {
+		return fmt.Errorf("[Config] error resolving template extends: %w", err)
 	}
 	return nil
 }

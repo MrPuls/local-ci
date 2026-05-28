@@ -169,8 +169,8 @@ func hasMatrixVariants(jobs []config.JobConfig) bool {
 }
 
 func hasDetached(jobs []config.JobConfig) bool {
-	for _, j := range jobs {
-		if j.Parallel {
+	for i := range jobs {
+		if jobs[i].IsParallel() {
 			return true
 		}
 	}
@@ -179,7 +179,7 @@ func hasDetached(jobs []config.JobConfig) bool {
 
 func partitionByParallel(jobs []config.JobConfig) (sequential, detached []config.JobConfig) {
 	for _, j := range jobs {
-		if j.Parallel {
+		if j.IsParallel() {
 			detached = append(detached, j)
 		} else {
 			sequential = append(sequential, j)
