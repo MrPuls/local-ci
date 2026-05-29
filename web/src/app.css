@@ -1,0 +1,132 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --border: #272b35;
+  --text: #e6e8ee;
+  --muted: #9aa1b1;
+  --accent: #5b8cff;
+  --pass: #3fb950;
+  --fail: #f85149;
+  --run: #d29922;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--accent);
+}
+
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.app-header h1 {
+  font-size: 16px;
+  margin: 0;
+}
+.app-header .crumb {
+  color: var(--muted);
+}
+
+main {
+  padding: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th,
+td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+tbody tr.clickable:hover {
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0 0 20px;
+  color: var(--text);
+}
+.meta dt {
+  color: var(--muted);
+}
+.meta dd {
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+.error {
+  color: var(--fail);
+}
+
+pre.log {
+  background: #0b0d11;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  overflow: auto;
+  max-height: 60vh;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
