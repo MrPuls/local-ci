@@ -52,17 +52,24 @@ func safeComponent(s string) bool {
 }
 
 // resolveInRoot resolves a request-supplied config path against the project
-// root and rejects anything that escapes it. An empty path defaults to the
-// project's .local-ci.yaml.
+// root. The server serves exactly one project (its working directory), so the
+// path is always interpreted as relative to that project: absolute paths and
+// parent-directory ("..") escapes are rejected before the path is used, so the
+// result can only ever lie inside the project root. An empty path defaults to
+// the project's .local-ci.yaml.
 func (s *Server) resolveInRoot(p string) (string, error) {
 	if p == "" {
 		p = defaultConfigName
 	}
-	abs := p
-	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(s.root, p)
+	if filepath.IsAbs(p) {
+		return "", errPathEscapes
 	}
-	abs = filepath.Clean(abs)
+	clean := filepath.Clean(p)
+	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", errPathEscapes
+	}
+	abs := filepath.Join(s.root, clean)
+	// Defense in depth: the joined path must still be within the root.
 	if abs != s.root && !strings.HasPrefix(abs, s.root+string(filepath.Separator)) {
 		return "", errPathEscapes
 	}

@@ -195,7 +195,8 @@ Test:
     - echo bye
 `), 0o644)
 
-	resp := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape(cfgPath), "")
+	// Paths are relative to the project root.
+	resp := do(t, "GET", ts.URL+"/api/config?path=.local-ci.yaml", "")
 	defer resp.Body.Close()
 	var g configGraph
 	json.NewDecoder(resp.Body).Decode(&g)
@@ -210,7 +211,7 @@ Test:
 	}
 
 	// A missing file inside the project root is invalid (load error) but allowed.
-	bad := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape(filepath.Join(root, "missing.yaml")), "")
+	bad := do(t, "GET", ts.URL+"/api/config?path=missing.yaml", "")
 	defer bad.Body.Close()
 	var bg configGraph
 	json.NewDecoder(bad.Body).Decode(&bg)
@@ -242,13 +243,15 @@ func TestPathTraversalRejected(t *testing.T) {
 		t.Errorf("events traversal id: status = %d, want 400", ev.StatusCode)
 	}
 
-	// Config endpoint: a path outside the project root is rejected and leaks nothing.
-	cfg := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape("/etc/passwd"), "")
-	defer cfg.Body.Close()
-	var g configGraph
-	json.NewDecoder(cfg.Body).Decode(&g)
-	if g.Valid || len(g.Stages) != 0 || len(g.Jobs) != 0 {
-		t.Errorf("config escape not rejected: %+v", g)
+	// Config endpoint: absolute paths and parent escapes are rejected and leak nothing.
+	for _, escape := range []string{"/etc/passwd", "../../../../etc/passwd"} {
+		cfg := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape(escape), "")
+		var g configGraph
+		json.NewDecoder(cfg.Body).Decode(&g)
+		cfg.Body.Close()
+		if g.Valid || len(g.Stages) != 0 || len(g.Jobs) != 0 {
+			t.Errorf("config escape %q not rejected: %+v", escape, g)
+		}
 	}
 
 	// Trigger: a configFile outside the project root is a 400.
