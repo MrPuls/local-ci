@@ -31,7 +31,8 @@ func newTestServer(t *testing.T, runFn runmanager.RunFunc) (*httptest.Server, *r
 		mgr.SetRunFunc(runFn)
 	}
 	root := t.TempDir()
-	ts := httptest.NewServer(New(st, mgr, testToken, "test", root).Handler())
+	configPath := filepath.Join(root, ".local-ci.yaml")
+	ts := httptest.NewServer(New(st, mgr, testToken, "test", configPath).Handler())
 	t.Cleanup(func() {
 		ts.Close()
 		st.Close()
@@ -195,8 +196,9 @@ Test:
     - echo bye
 `), 0o644)
 
-	// Paths are relative to the project root.
-	resp := do(t, "GET", ts.URL+"/api/config?path=.local-ci.yaml", "")
+	// The config endpoint operates on the server's fixed project config; no
+	// path is accepted from the request.
+	resp := do(t, "GET", ts.URL+"/api/config", "")
 	defer resp.Body.Close()
 	var g configGraph
 	json.NewDecoder(resp.Body).Decode(&g)
@@ -209,21 +211,13 @@ Test:
 	if len(g.Jobs) != 2 {
 		t.Errorf("jobs = %+v, want 2", g.Jobs)
 	}
-
-	// A missing file inside the project root is invalid (load error) but allowed.
-	bad := do(t, "GET", ts.URL+"/api/config?path=missing.yaml", "")
-	defer bad.Body.Close()
-	var bg configGraph
-	json.NewDecoder(bad.Body).Decode(&bg)
-	if bg.Valid {
-		t.Error("expected invalid graph for missing config")
-	}
 }
 
 func TestPathTraversalRejected(t *testing.T) {
-	ts, _, _, _ := newTestServer(t, fullRun)
+	ts, _, _, _ := newTestServer(t, nil)
 
-	// Log endpoint: traversal via job name or run id is a 400.
+	// The only request-supplied path components are the run id and job name;
+	// both are validated as single components, so traversal attempts are 400.
 	logCases := []string{
 		"/api/runs/good/log?job=" + url.QueryEscape("../../../../etc/passwd"),
 		"/api/runs/" + url.QueryEscape("a..b") + "/log?job=build",
@@ -236,29 +230,10 @@ func TestPathTraversalRejected(t *testing.T) {
 		}
 	}
 
-	// SSE endpoint: traversal via run id is a 400.
 	ev := do(t, "GET", ts.URL+"/api/runs/"+url.QueryEscape("a..b")+"/events", "")
 	ev.Body.Close()
 	if ev.StatusCode != http.StatusBadRequest {
 		t.Errorf("events traversal id: status = %d, want 400", ev.StatusCode)
-	}
-
-	// Config endpoint: absolute paths and parent escapes are rejected and leak nothing.
-	for _, escape := range []string{"/etc/passwd", "../../../../etc/passwd"} {
-		cfg := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape(escape), "")
-		var g configGraph
-		json.NewDecoder(cfg.Body).Decode(&g)
-		cfg.Body.Close()
-		if g.Valid || len(g.Stages) != 0 || len(g.Jobs) != 0 {
-			t.Errorf("config escape %q not rejected: %+v", escape, g)
-		}
-	}
-
-	// Trigger: a configFile outside the project root is a 400.
-	tr := do(t, "POST", ts.URL+"/api/runs", `{"configFile":"/etc/passwd"}`)
-	tr.Body.Close()
-	if tr.StatusCode != http.StatusBadRequest {
-		t.Errorf("trigger config escape: status = %d, want 400", tr.StatusCode)
 	}
 }
 

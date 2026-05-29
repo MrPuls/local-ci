@@ -19,27 +19,24 @@ import (
 	"github.com/MrPuls/local-ci/internal/store"
 )
 
-const defaultConfigName = ".local-ci.yaml"
-
-// errPathEscapes is returned when a request-supplied path resolves outside the
-// server's project root.
-var errPathEscapes = errors.New("path escapes the project directory")
-
 // Server wires the HTTP routes to the manager and store.
 type Server struct {
 	store   *store.Store
 	manager *runmanager.Manager
 	token   string
 	version string
-	root    string // project root; request-supplied config paths are confined here
+	// configPath is the single project config the server operates on. It is
+	// fixed at startup (a trusted operator setting) and never derived from a
+	// request, so no request data ever reaches a config file path.
+	configPath string
 }
 
-func New(st *store.Store, mgr *runmanager.Manager, token, version, root string) *Server {
-	abs, err := filepath.Abs(root)
+func New(st *store.Store, mgr *runmanager.Manager, token, version, configPath string) *Server {
+	abs, err := filepath.Abs(configPath)
 	if err != nil {
-		abs = root
+		abs = configPath
 	}
-	return &Server{store: st, manager: mgr, token: token, version: version, root: filepath.Clean(abs)}
+	return &Server{store: st, manager: mgr, token: token, version: version, configPath: abs}
 }
 
 // safeComponent reports whether s is usable as a single path component (a run
@@ -49,31 +46,6 @@ func New(st *store.Store, mgr *runmanager.Manager, token, version, root string) 
 func safeComponent(s string) bool {
 	return s != "" && s != "." && s != ".." &&
 		!strings.ContainsAny(s, `/\`) && !strings.Contains(s, "..")
-}
-
-// resolveInRoot resolves a request-supplied config path against the project
-// root. The server serves exactly one project (its working directory), so the
-// path is always interpreted as relative to that project: absolute paths and
-// parent-directory ("..") escapes are rejected before the path is used, so the
-// result can only ever lie inside the project root. An empty path defaults to
-// the project's .local-ci.yaml.
-func (s *Server) resolveInRoot(p string) (string, error) {
-	if p == "" {
-		p = defaultConfigName
-	}
-	if filepath.IsAbs(p) {
-		return "", errPathEscapes
-	}
-	clean := filepath.Clean(p)
-	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", errPathEscapes
-	}
-	abs := filepath.Join(s.root, clean)
-	// Defense in depth: the joined path must still be within the root.
-	if abs != s.root && !strings.HasPrefix(abs, s.root+string(filepath.Separator)) {
-		return "", errPathEscapes
-	}
-	return abs, nil
 }
 
 // Handler returns the fully-routed, auth-wrapped HTTP handler.
@@ -122,12 +94,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 type triggerRequest struct {
-	ConfigFile string   `json:"configFile"`
-	Jobs       []string `json:"jobs"`
-	Stages     []string `json:"stages"`
-	Env        []string `json:"env"`
-	Remote     string   `json:"remote"`
-	Mode       string   `json:"mode"`
+	Jobs   []string `json:"jobs"`
+	Stages []string `json:"stages"`
+	Env    []string `json:"env"`
+	Remote string   `json:"remote"`
+	Mode   string   `json:"mode"`
 }
 
 func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
@@ -136,13 +107,10 @@ func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	configFile, err := s.resolveInRoot(req.ConfigFile)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "config path is outside the project directory")
-		return
-	}
+	// The config is the server's fixed project config; clients select jobs /
+	// stages / mode / env, never the config path.
 	id, err := s.manager.Trigger(engine.Spec{
-		ConfigFile: configFile,
+		ConfigFile: s.configPath,
 		JobNames:   req.Jobs,
 		Stages:     req.Stages,
 		Env:        req.Env,

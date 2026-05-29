@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	serveHost  string
-	servePort  int
-	serveToken string
+	serveHost   string
+	servePort   int
+	serveToken  string
+	serveConfig string
 )
 
 func newServeCmd() *cobra.Command {
@@ -40,14 +41,15 @@ func newServeCmd() *cobra.Command {
 			if token == "" {
 				token = randomToken()
 			}
-			// The project root confines request-supplied config paths; runs
-			// also execute relative to it (the server's working directory).
-			root, err := os.Getwd()
+			// The server operates on a single project config, fixed here from a
+			// trusted flag (relative to the working directory) — never from a
+			// request. Runs also execute in this working directory.
+			configPath, err := filepath.Abs(serveConfig)
 			if err != nil {
 				return err
 			}
 			mgr := runmanager.New(st)
-			srv := server.New(st, mgr, token, version, root)
+			srv := server.New(st, mgr, token, version, configPath)
 
 			addr := net.JoinHostPort(serveHost, strconv.Itoa(servePort))
 			ln, err := net.Listen("tcp", addr)
@@ -79,6 +81,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&serveHost, "host", "127.0.0.1", "Host/interface to bind (loopback by default)")
 	cmd.Flags().IntVar(&servePort, "port", 0, "Port to bind (0 = pick an ephemeral port)")
 	cmd.Flags().StringVar(&serveToken, "token", "", "Bearer token clients must present (default: a random per-launch token)")
+	cmd.Flags().StringVarP(&serveConfig, "config", "c", ".local-ci.yaml", "Project config file the server operates on (relative to the working directory)")
 	return cmd
 }
 

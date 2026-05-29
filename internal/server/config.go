@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/MrPuls/local-ci/internal/config"
@@ -25,18 +24,14 @@ type graphJob struct {
 	VariantCount int    `json:"variantCount"` // >1 when the job fans out via matrix
 }
 
-// buildConfigGraph loads and validates a config and shapes it for the UI. The
-// request-supplied path is confined to the project root (rejecting traversal
-// outside it). Load or validation failures are reported as Valid:false with
-// messages, never as a transport error.
-func (s *Server) buildConfigGraph(path string) configGraph {
-	resolved, err := s.resolveInRoot(path)
-	if err != nil {
-		return configGraph{Valid: false, Path: path, Errors: []string{"config path is outside the project directory"}}
-	}
-	cfg := config.NewConfig(resolved)
+// buildConfigGraph loads and validates the server's project config and shapes
+// it for the UI. The path is the fixed project config (never request-derived),
+// so there is no traversal surface here. Load or validation failures are
+// reported as Valid:false with messages, never as a transport error.
+func (s *Server) buildConfigGraph() configGraph {
+	cfg := config.NewConfig(s.configPath)
 	if err := cfg.LoadConfig(); err != nil {
-		return configGraph{Valid: false, Path: resolved, Errors: []string{err.Error()}}
+		return configGraph{Valid: false, Path: s.configPath, Errors: []string{err.Error()}}
 	}
 	if err := config.ValidateConfig(cfg); err != nil {
 		return configGraph{Valid: false, Path: cfg.FileName, Stages: cfg.Stages, Errors: []string{err.Error()}}
@@ -60,18 +55,11 @@ func (s *Server) buildConfigGraph(path string) configGraph {
 	return g
 }
 
-func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.buildConfigGraph(r.URL.Query().Get("path")))
+func (s *Server) handleConfig(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.buildConfigGraph())
 }
 
-func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Path string `json:"path"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
-		return
-	}
-	g := s.buildConfigGraph(req.Path)
+func (s *Server) handleValidate(w http.ResponseWriter, _ *http.Request) {
+	g := s.buildConfigGraph()
 	writeJSON(w, http.StatusOK, map[string]any{"valid": g.Valid, "errors": g.Errors})
 }
