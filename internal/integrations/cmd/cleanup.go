@@ -49,20 +49,20 @@ func RunGlobalCleanup(cfg *config.CleanupConfig, env map[string]string) {
 	log.Println("[Cleanup] Global cleanup completed successfully")
 }
 
-func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string, out io.Writer) error {
+func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string, out io.Writer, logger *log.Logger) error {
 	if cfg == nil {
-		log.Println("[Cleanup] No job cleanup config provided, skipping")
+		logger.Println("[Cleanup] No job cleanup config provided, skipping")
 		return nil
 	}
 	timeout := cfg.Timeout
 	if timeout == 0 {
-		log.Println("[Cleanup] No job cleanup timeout provided, using default of 5 minutes")
+		logger.Println("[Cleanup] No job cleanup timeout provided, using default of 5 minutes")
 		timeout = 5
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Minute)
 	defer cancel()
-	log.Printf("[Cleanup] Running job cleanup with timeout %d minute(s)\n", timeout)
+	logger.Printf("[Cleanup] Running job cleanup with timeout %d minute(s)\n", timeout)
 	for _, cmd := range cfg.Run {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
 		command.Stdout = out
@@ -71,7 +71,7 @@ func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string, out io.W
 		for k, v := range env {
 			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
 		}
-		log.Printf("[Cleanup] Running command: %s\n", cmd)
+		logger.Printf("[Cleanup] Running command: %s\n", cmd)
 		if err := command.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
 				return fmt.Errorf("[Cleanup] Cleanup timed out after %d minute(s) on command: %s: %w", timeout, cmd, err)
@@ -79,6 +79,6 @@ func RunJobCleanup(cfg *config.JobCleanupConfig, env map[string]string, out io.W
 			return fmt.Errorf("[Cleanup] Cleanup command failed: %s: %w", cmd, err)
 		}
 	}
-	log.Println("[Cleanup] Job cleanup completed successfully")
+	logger.Println("[Cleanup] Job cleanup completed successfully")
 	return nil
 }

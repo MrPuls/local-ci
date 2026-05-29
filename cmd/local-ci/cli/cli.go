@@ -1,12 +1,20 @@
 package cli
 
 import (
-	"github.com/MrPuls/local-ci/app"
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/MrPuls/local-ci/internal/engine"
+	"github.com/MrPuls/local-ci/internal/sink/terminal"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version        = "0.1.2"
+	version        = "0.1.3"
 	configFile     string
 	jobs           []string
 	stages         []string
@@ -34,15 +42,35 @@ func newRunCmd() *cobra.Command {
 		Short: "Run pipeline",
 		Long:  "Run CI pipeline based on configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			orchestrator := app.NewOrchestrator()
-			return orchestrator.Orchestrate(configFile, app.OrchestratorOptions{
-				JobNames:       jobs,
-				Stages:         stages,
-				Remote:         remote,
-				Env:            env,
-				Parallel:       parallel,
-				ParallelStages: parallelStages,
-			})
+			mode := engine.ModeSequential
+			switch {
+			case parallelStages:
+				mode = engine.ModeParallelStages
+			case parallel:
+				mode = engine.ModeParallel
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
+			defer cancel()
+
+			signals := make(chan os.Signal, 1)
+			signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-signals
+				log.Println("Operation interrupted, initiating graceful shutdown...")
+				log.Println("Stopping runner...")
+				cancel()
+			}()
+
+			bus := engine.NewBus(terminal.New(os.Stdout, os.Stderr))
+			return engine.Run(ctx, engine.Spec{
+				ConfigFile: configFile,
+				JobNames:   jobs,
+				Stages:     stages,
+				Remote:     remote,
+				Env:        env,
+				Mode:       mode,
+			}, bus)
 		},
 	}
 

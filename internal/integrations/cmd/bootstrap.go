@@ -51,20 +51,20 @@ func RunGlobalBootstrap(cfg *config.BootstrapConfig, env map[string]string) erro
 	return nil
 }
 
-func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string, out io.Writer) error {
+func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string, out io.Writer, logger *log.Logger) error {
 	if cfg == nil {
-		log.Println("[Bootstrap] No job bootstrap config provided, skipping")
+		logger.Println("[Bootstrap] No job bootstrap config provided, skipping")
 		return nil
 	}
 	timeout := cfg.Timeout
 	if timeout == 0 {
-		log.Println("[Bootstrap] No job bootstrap timeout provided, using default of 5 minutes")
+		logger.Println("[Bootstrap] No job bootstrap timeout provided, using default of 5 minutes")
 		timeout = 5
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Minute)
 	defer cancel()
-	log.Printf("[Bootstrap] Running job bootstrap with timeout %d minute(s)\n", timeout)
+	logger.Printf("[Bootstrap] Running job bootstrap with timeout %d minute(s)\n", timeout)
 	for _, cmd := range cfg.Run {
 		command := exec.CommandContext(ctx, "sh", "-c", cmd)
 		command.Stdout = out
@@ -73,7 +73,7 @@ func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string, out 
 		for k, v := range env {
 			command.Env = append(command.Env, fmt.Sprintf("%s=%s", k, v))
 		}
-		log.Printf("[Bootstrap] Running command: %s\n", cmd)
+		logger.Printf("[Bootstrap] Running command: %s\n", cmd)
 		if err := command.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
 				return fmt.Errorf("[Bootstrap] Bootstrap timed out after %d minute(s) on command: %s: %w", timeout, cmd, err)
@@ -81,6 +81,6 @@ func RunJobBootstrap(cfg *config.JobBootstrapConfig, env map[string]string, out 
 			return fmt.Errorf("[Bootstrap] Bootstrap command failed: %s: %w", cmd, err)
 		}
 	}
-	log.Println("[Bootstrap] Job bootstrap completed successfully")
+	logger.Println("[Bootstrap] Job bootstrap completed successfully")
 	return nil
 }

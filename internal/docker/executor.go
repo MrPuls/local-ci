@@ -18,19 +18,21 @@ import (
 type Executor struct {
 	client  *client.Client
 	adapter ConfigAdapter
+	logger  *log.Logger
 }
 
-func NewDockerExecutor(client *client.Client, adapter ConfigAdapter) *Executor {
+func NewDockerExecutor(client *client.Client, adapter ConfigAdapter, logger *log.Logger) *Executor {
 	return &Executor{
 		client:  client,
 		adapter: adapter,
+		logger:  logger,
 	}
 }
 
 func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Writer) error {
-	cm := NewContainerManager(e.client, e.adapter)
-	im := NewImageManager(e.client, e.adapter)
-	log.Println("Parsing working directory...")
+	cm := NewContainerManager(e.client, e.adapter, e.logger)
+	im := NewImageManager(e.client, e.adapter, e.logger)
+	e.logger.Println("Parsing working directory...")
 	wd, wdErr := os.Getwd()
 	if wdErr != nil {
 		return wdErr
@@ -45,7 +47,7 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 	defer func(reader io.ReadCloser) {
 		err := reader.Close()
 		if err != nil {
-			log.Printf("[Docker] Error closing image pull reader: %v", err)
+			e.logger.Printf("[Docker] Error closing image pull reader: %v", err)
 		}
 	}(reader)
 
@@ -55,8 +57,8 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 		return readerErr
 	}
 
-	log.Println("[Docker] Image is pulled...")
-	log.Println("[Docker] Start container creation...")
+	e.logger.Println("[Docker] Image is pulled...")
+	e.logger.Println("[Docker] Start container creation...")
 	containerResp, createErr := cm.CreateContainer(ctx, job)
 	if createErr != nil {
 		return createErr
@@ -65,27 +67,27 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 	containerID := containerResp.ID
 
 	var b bytes.Buffer
-	log.Println("[Docker] Trying to create a fs tar...")
+	e.logger.Println("[Docker] Trying to create a fs tar...")
 	fsErr := archive.CreateFSTar(wd, &b)
 	if fsErr != nil {
 		return fsErr
 	}
 
-	log.Println("[Docker] Trying to copy files to container...")
+	e.logger.Println("[Docker] Trying to copy files to container...")
 	// options could be switched to adapter type if needed more customization
 	copyErr := cm.CopyToContainer(ctx, containerID, job.Workdir, &b, container.CopyToContainerOptions{})
 	if copyErr != nil {
 		return copyErr
 	}
 
-	log.Println("[Docker] Attaching logger to container...")
+	e.logger.Println("[Docker] Attaching logger to container...")
 	logs, logErr := cm.AttachLogger(ctx, containerID, container.AttachOptions{Stream: true, Stdout: true, Stderr: true})
 	if logErr != nil {
 		return logErr
 	}
 	defer logs.Close()
 
-	log.Println("[Docker] Trying to start a container...")
+	e.logger.Println("[Docker] Trying to start a container...")
 	if startErr := cm.StartContainer(ctx, containerID, container.StartOptions{}); startErr != nil {
 		return startErr
 	}
@@ -95,7 +97,7 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 		return stdErr
 	}
 
-	log.Println("[Docker] Waiting for container to finish...")
+	e.logger.Println("[Docker] Waiting for container to finish...")
 	statusCh, errCh := cm.WaitForContainer(ctx, containerID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
@@ -111,7 +113,7 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 		}
 	}
 
-	log.Println("[Docker] All done!")
-	log.Println("[Docker] Starting cleanup...")
+	e.logger.Println("[Docker] All done!")
+	e.logger.Println("[Docker] Starting cleanup...")
 	return nil
 }

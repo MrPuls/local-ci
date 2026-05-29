@@ -14,40 +14,42 @@ import (
 type ContainerManager struct {
 	client  *client.Client
 	adapter ConfigAdapter
+	logger  *log.Logger
 }
 
-func NewContainerManager(cli *client.Client, adapter ConfigAdapter) *ContainerManager {
+func NewContainerManager(cli *client.Client, adapter ConfigAdapter, logger *log.Logger) *ContainerManager {
 	return &ContainerManager{
 		client:  cli,
 		adapter: adapter,
+		logger:  logger,
 	}
 }
 
 func (c *ContainerManager) CreateContainer(ctx context.Context, job config.JobConfig) (container.CreateResponse, error) {
-	log.Println("[Docker] Creating necessary configs...")
+	c.logger.Println("[Docker] Creating necessary configs...")
 	containerCfg := c.adapter.ToContainerConfig(job)
 	hostCfg := c.adapter.ToHostConfig(job)
-	log.Println("[Docker] Creating container...")
+	c.logger.Println("[Docker] Creating container...")
 	return c.client.ContainerCreate(ctx, containerCfg, hostCfg, nil, nil, job.Name)
 }
 
 func (c *ContainerManager) StartContainer(ctx context.Context, containerID string, options container.StartOptions) error {
-	log.Printf("[Docker] Starting container %q...", containerID)
+	c.logger.Printf("[Docker] Starting container %q...", containerID)
 	return c.client.ContainerStart(ctx, containerID, options)
 }
 
 func (c *ContainerManager) StopContainer(ctx context.Context, containerID string, options container.StopOptions) error {
-	log.Printf("[Docker] Stopping container %q...", containerID)
+	c.logger.Printf("[Docker] Stopping container %q...", containerID)
 	return c.client.ContainerStop(ctx, containerID, options)
 }
 
 func (c *ContainerManager) RemoveContainer(ctx context.Context, containerID string, options container.RemoveOptions) error {
-	log.Printf("[Docker] Removing container %q...", containerID)
+	c.logger.Printf("[Docker] Removing container %q...", containerID)
 	return c.client.ContainerRemove(ctx, containerID, options)
 }
 
 func (c *ContainerManager) CopyToContainer(ctx context.Context, containerID string, dest string, content io.Reader, options container.CopyToContainerOptions) error {
-	log.Printf("[Docker] Copying files from %q to container %q...", dest, containerID)
+	c.logger.Printf("[Docker] Copying files from %q to container %q...", dest, containerID)
 	return c.client.CopyToContainer(ctx, containerID, dest, content, options)
 }
 
@@ -60,6 +62,6 @@ func (c *ContainerManager) WaitForContainer(ctx context.Context, containerID str
 }
 
 func (c *ContainerManager) ListContainers(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
-	log.Printf("[Docker] Listing containers...")
+	c.logger.Printf("[Docker] Listing containers...")
 	return c.client.ContainerList(ctx, options)
 }
