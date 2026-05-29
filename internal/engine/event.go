@@ -84,6 +84,8 @@ type Event struct {
 	Mode        RunMode
 	HasMatrix   bool
 	HasDetached bool
+	ConfigPath  string
+	ProjectPath string
 
 	// RunStarted / GroupStarted: job ordering for the board.
 	Order []string

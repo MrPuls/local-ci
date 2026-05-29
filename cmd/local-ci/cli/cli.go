@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/engine"
+	"github.com/MrPuls/local-ci/internal/sink/recorder"
 	"github.com/MrPuls/local-ci/internal/sink/terminal"
+	"github.com/MrPuls/local-ci/internal/store"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version        = "0.1.3"
+	version        = "0.1.4"
 	configFile     string
 	jobs           []string
 	stages         []string
@@ -22,7 +24,18 @@ var (
 	env            []string
 	parallel       bool
 	parallelStages bool
+	noRecord       bool
 )
+
+// openStore opens the run-history store at its default location. Shared by the
+// run command (to record) and the runs/log commands (to read).
+func openStore() (*store.Store, error) {
+	path, err := store.DefaultDBPath()
+	if err != nil {
+		return nil, err
+	}
+	return store.Open(path)
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "local-ci",
@@ -62,7 +75,17 @@ func newRunCmd() *cobra.Command {
 				cancel()
 			}()
 
-			bus := engine.NewBus(terminal.New(os.Stdout, os.Stderr))
+			sinks := []engine.Sink{terminal.New(os.Stdout, os.Stderr)}
+			if !noRecord {
+				if st, err := openStore(); err != nil {
+					log.Printf("run history disabled: %v", err)
+				} else {
+					defer st.Close()
+					sinks = append(sinks, recorder.New(st))
+				}
+			}
+
+			bus := engine.NewBus(sinks...)
 			return engine.Run(ctx, engine.Spec{
 				ConfigFile: configFile,
 				JobNames:   jobs,
@@ -82,6 +105,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&env, "env", "e", []string{}, "Set environment variables for the pipeline")
 	cmd.Flags().BoolVarP(&parallel, "parallel", "p", false, "Run all jobs in parallel, ignoring stages")
 	cmd.Flags().BoolVar(&parallelStages, "parallel-stages", false, "Run stages in order, with jobs inside each stage in parallel")
+	cmd.Flags().BoolVar(&noRecord, "no-record", false, "Do not record this run to the local history database")
 	cmd.MarkFlagsMutuallyExclusive("parallel", "parallel-stages")
 
 	return cmd
@@ -89,4 +113,6 @@ func newRunCmd() *cobra.Command {
 
 func init() {
 	rootCmd.AddCommand(newRunCmd())
+	rootCmd.AddCommand(newRunsCmd())
+	rootCmd.AddCommand(newLogCmd())
 }
