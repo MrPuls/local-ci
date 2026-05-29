@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/engine"
@@ -157,6 +158,10 @@ func (s *Server) handleLog(w http.ResponseWriter, r *http.Request) {
 	job := r.URL.Query().Get("job")
 	if job == "" {
 		writeError(w, http.StatusBadRequest, "job query parameter is required (use 'pipeline' for run diagnostics)")
+		return
+	}
+	if strings.Contains(job, "/") || strings.Contains(job, "\\") || strings.Contains(job, "..") {
+		writeError(w, http.StatusBadRequest, "invalid job name")
 		return
 	}
 	name := job + ".log"
