@@ -2,9 +2,12 @@ package engine
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"maps"
+	"os"
 	"strings"
 	"time"
 
@@ -18,11 +21,12 @@ import (
 
 var cleanupTimeout = 30 * time.Second
 
-// newRunID returns an identifier for a run. It is not consumed by the CLI yet;
-// later phases (persistence, the server) give it a stronger uniqueness
-// guarantee.
+// newRunID returns a sortable, collision-safe run identifier: a UTC timestamp
+// prefix (lexicographically orderable) plus a short random suffix.
 func newRunID() string {
-	return time.Now().UTC().Format("20060102T150405.000000Z")
+	var b [3]byte
+	_, _ = rand.Read(b[:])
+	return time.Now().UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b[:])
 }
 
 // Run executes a pipeline described by spec, emitting the full event stream to
@@ -87,6 +91,7 @@ func Run(ctx context.Context, spec Spec, bus *Bus) error {
 		return prepErr
 	}
 
+	wd, _ := os.Getwd()
 	start := time.Now()
 	bus.Emit(Event{
 		Type:        RunStarted,
@@ -95,6 +100,8 @@ func Run(ctx context.Context, spec Spec, bus *Bus) error {
 		HasMatrix:   hasMatrixVariants(runner.jobs),
 		HasDetached: hasDetached(runner.jobs),
 		Order:       jobNames(runner.jobs),
+		ConfigPath:  cfg.FileName,
+		ProjectPath: wd,
 	})
 
 	runErr := runPipeline(cfg, runner, diag)
