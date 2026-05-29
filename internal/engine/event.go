@@ -69,6 +69,10 @@ type Event struct {
 	Type  EventType
 	Time  time.Time
 	RunID string
+	// Seq is a per-run monotonic sequence number assigned by Bus.Emit. It lets
+	// the event log and SSE replay order events and dedupe across a
+	// replay-then-live handoff. Zero for events that never passed through a bus.
+	Seq uint64
 
 	// Job-scoped events.
 	Job   string
@@ -111,6 +115,7 @@ type Sink interface {
 // so sinks observe a single consistent ordering.
 type Bus struct {
 	mu    sync.Mutex
+	seq   uint64
 	sinks []Sink
 }
 
@@ -124,6 +129,8 @@ func (b *Bus) Emit(e Event) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.seq++
+	e.Seq = b.seq
 	for _, s := range b.sinks {
 		s.Emit(e)
 	}

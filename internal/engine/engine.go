@@ -21,19 +21,20 @@ import (
 
 var cleanupTimeout = 30 * time.Second
 
-// newRunID returns a sortable, collision-safe run identifier: a UTC timestamp
-// prefix (lexicographically orderable) plus a short random suffix.
-func newRunID() string {
+// NewRunID returns a sortable, collision-safe run identifier: a UTC timestamp
+// prefix (lexicographically orderable) plus a short random suffix. Callers
+// generate the id and pass it to Run so they can register/track the run before
+// it begins emitting events.
+func NewRunID() string {
 	var b [3]byte
 	_, _ = rand.Read(b[:])
 	return time.Now().UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b[:])
 }
 
-// Run executes a pipeline described by spec, emitting the full event stream to
-// bus. It honors ctx for cancellation (callers wire their own signal handling)
-// and always runs container cleanup before returning.
-func Run(ctx context.Context, spec Spec, bus *Bus) error {
-	runID := newRunID()
+// Run executes a pipeline described by spec under the given runID, emitting the
+// full event stream to bus. It honors ctx for cancellation (callers wire their
+// own signal handling) and always runs container cleanup before returning.
+func Run(ctx context.Context, runID string, spec Spec, bus *Bus) error {
 	diag := newDiagLogger(bus, runID)
 
 	cfg := config.NewConfig(spec.ConfigFile)
