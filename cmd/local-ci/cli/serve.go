@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
@@ -39,8 +40,14 @@ func newServeCmd() *cobra.Command {
 			if token == "" {
 				token = randomToken()
 			}
+			// The project root confines request-supplied config paths; runs
+			// also execute relative to it (the server's working directory).
+			root, err := os.Getwd()
+			if err != nil {
+				return err
+			}
 			mgr := runmanager.New(st)
-			srv := server.New(st, mgr, token, version)
+			srv := server.New(st, mgr, token, version, root)
 
 			addr := net.JoinHostPort(serveHost, strconv.Itoa(servePort))
 			ln, err := net.Listen("tcp", addr)

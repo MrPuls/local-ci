@@ -23,6 +23,10 @@ const maxEventLine = 8 << 20 // 8 MiB
 // Last-Event-ID lets a reconnecting client resume after the last seq it saw.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !safeComponent(id) {
+		writeError(w, http.StatusBadRequest, "invalid run id")
+		return
+	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {

@@ -25,16 +25,18 @@ type graphJob struct {
 	VariantCount int    `json:"variantCount"` // >1 when the job fans out via matrix
 }
 
-// buildConfigGraph loads and validates a config and shapes it for the UI. Load
-// or validation failures are reported as Valid:false with messages, never as a
-// transport error.
-func buildConfigGraph(path string) configGraph {
-	if path == "" {
-		path = ".local-ci.yaml"
+// buildConfigGraph loads and validates a config and shapes it for the UI. The
+// request-supplied path is confined to the project root (rejecting traversal
+// outside it). Load or validation failures are reported as Valid:false with
+// messages, never as a transport error.
+func (s *Server) buildConfigGraph(path string) configGraph {
+	resolved, err := s.resolveInRoot(path)
+	if err != nil {
+		return configGraph{Valid: false, Path: path, Errors: []string{"config path is outside the project directory"}}
 	}
-	cfg := config.NewConfig(path)
+	cfg := config.NewConfig(resolved)
 	if err := cfg.LoadConfig(); err != nil {
-		return configGraph{Valid: false, Path: path, Errors: []string{err.Error()}}
+		return configGraph{Valid: false, Path: resolved, Errors: []string{err.Error()}}
 	}
 	if err := config.ValidateConfig(cfg); err != nil {
 		return configGraph{Valid: false, Path: cfg.FileName, Stages: cfg.Stages, Errors: []string{err.Error()}}
@@ -59,7 +61,7 @@ func buildConfigGraph(path string) configGraph {
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, buildConfigGraph(r.URL.Query().Get("path")))
+	writeJSON(w, http.StatusOK, s.buildConfigGraph(r.URL.Query().Get("path")))
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +72,6 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	g := buildConfigGraph(req.Path)
+	g := s.buildConfigGraph(req.Path)
 	writeJSON(w, http.StatusOK, map[string]any{"valid": g.Valid, "errors": g.Errors})
 }

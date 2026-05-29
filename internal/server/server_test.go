@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +20,7 @@ import (
 
 const testToken = "secret"
 
-func newTestServer(t *testing.T, runFn runmanager.RunFunc) (*httptest.Server, *runmanager.Manager, *store.Store) {
+func newTestServer(t *testing.T, runFn runmanager.RunFunc) (*httptest.Server, *runmanager.Manager, *store.Store, string) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
@@ -29,12 +30,13 @@ func newTestServer(t *testing.T, runFn runmanager.RunFunc) (*httptest.Server, *r
 	if runFn != nil {
 		mgr.SetRunFunc(runFn)
 	}
-	ts := httptest.NewServer(New(st, mgr, testToken, "test").Handler())
+	root := t.TempDir()
+	ts := httptest.NewServer(New(st, mgr, testToken, "test", root).Handler())
 	t.Cleanup(func() {
 		ts.Close()
 		st.Close()
 	})
-	return ts, mgr, st
+	return ts, mgr, st, root
 }
 
 func do(t *testing.T, method, url, body string) *http.Response {
@@ -65,7 +67,7 @@ func fullRun(_ context.Context, runID string, _ engine.Spec, bus *engine.Bus) er
 }
 
 func TestAuth(t *testing.T) {
-	ts, _, _ := newTestServer(t, nil)
+	ts, _, _, _ := newTestServer(t, nil)
 
 	resp, err := http.Get(ts.URL + "/api/health")
 	if err != nil {
@@ -84,7 +86,7 @@ func TestAuth(t *testing.T) {
 }
 
 func TestTriggerRecordsAndHistory(t *testing.T) {
-	ts, mgr, _ := newTestServer(t, fullRun)
+	ts, mgr, _, _ := newTestServer(t, fullRun)
 
 	resp := do(t, "POST", ts.URL+"/api/runs", `{"mode":"sequential"}`)
 	if resp.StatusCode != http.StatusAccepted {
@@ -124,7 +126,7 @@ func TestTriggerRecordsAndHistory(t *testing.T) {
 }
 
 func TestSSEReplayFinishedRun(t *testing.T) {
-	ts, mgr, _ := newTestServer(t, fullRun)
+	ts, mgr, _, _ := newTestServer(t, fullRun)
 	resp := do(t, "POST", ts.URL+"/api/runs", `{"mode":"sequential"}`)
 	var trig struct{ ID string }
 	json.NewDecoder(resp.Body).Decode(&trig)
@@ -148,7 +150,7 @@ func TestSSEReplayFinishedRun(t *testing.T) {
 
 func TestCancel(t *testing.T) {
 	started := make(chan struct{})
-	ts, _, _ := newTestServer(t, func(ctx context.Context, runID string, _ engine.Spec, bus *engine.Bus) error {
+	ts, _, _, _ := newTestServer(t, func(ctx context.Context, runID string, _ engine.Spec, bus *engine.Bus) error {
 		bus.Emit(engine.Event{Type: engine.RunStarted, RunID: runID})
 		close(started)
 		<-ctx.Done()
@@ -176,9 +178,8 @@ func TestCancel(t *testing.T) {
 }
 
 func TestConfigGraph(t *testing.T) {
-	ts, _, _ := newTestServer(t, nil)
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".local-ci.yaml")
+	ts, _, _, root := newTestServer(t, nil)
+	cfgPath := filepath.Join(root, ".local-ci.yaml")
 	os.WriteFile(cfgPath, []byte(`stages:
   - build
   - test
@@ -194,7 +195,7 @@ Test:
     - echo bye
 `), 0o644)
 
-	resp := do(t, "GET", ts.URL+"/api/config?path="+cfgPath, "")
+	resp := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape(cfgPath), "")
 	defer resp.Body.Close()
 	var g configGraph
 	json.NewDecoder(resp.Body).Decode(&g)
@@ -208,12 +209,53 @@ Test:
 		t.Errorf("jobs = %+v, want 2", g.Jobs)
 	}
 
-	bad := do(t, "GET", ts.URL+"/api/config?path="+filepath.Join(dir, "missing.yaml"), "")
+	// A missing file inside the project root is invalid (load error) but allowed.
+	bad := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape(filepath.Join(root, "missing.yaml")), "")
 	defer bad.Body.Close()
 	var bg configGraph
 	json.NewDecoder(bad.Body).Decode(&bg)
 	if bg.Valid {
 		t.Error("expected invalid graph for missing config")
+	}
+}
+
+func TestPathTraversalRejected(t *testing.T) {
+	ts, _, _, _ := newTestServer(t, fullRun)
+
+	// Log endpoint: traversal via job name or run id is a 400.
+	logCases := []string{
+		"/api/runs/good/log?job=" + url.QueryEscape("../../../../etc/passwd"),
+		"/api/runs/" + url.QueryEscape("a..b") + "/log?job=build",
+	}
+	for _, p := range logCases {
+		resp := do(t, "GET", ts.URL+p, "")
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("log %q: status = %d, want 400", p, resp.StatusCode)
+		}
+	}
+
+	// SSE endpoint: traversal via run id is a 400.
+	ev := do(t, "GET", ts.URL+"/api/runs/"+url.QueryEscape("a..b")+"/events", "")
+	ev.Body.Close()
+	if ev.StatusCode != http.StatusBadRequest {
+		t.Errorf("events traversal id: status = %d, want 400", ev.StatusCode)
+	}
+
+	// Config endpoint: a path outside the project root is rejected and leaks nothing.
+	cfg := do(t, "GET", ts.URL+"/api/config?path="+url.QueryEscape("/etc/passwd"), "")
+	defer cfg.Body.Close()
+	var g configGraph
+	json.NewDecoder(cfg.Body).Decode(&g)
+	if g.Valid || len(g.Stages) != 0 || len(g.Jobs) != 0 {
+		t.Errorf("config escape not rejected: %+v", g)
+	}
+
+	// Trigger: a configFile outside the project root is a 400.
+	tr := do(t, "POST", ts.URL+"/api/runs", `{"configFile":"/etc/passwd"}`)
+	tr.Body.Close()
+	if tr.StatusCode != http.StatusBadRequest {
+		t.Errorf("trigger config escape: status = %d, want 400", tr.StatusCode)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/engine"
@@ -18,16 +19,54 @@ import (
 	"github.com/MrPuls/local-ci/internal/store"
 )
 
+const defaultConfigName = ".local-ci.yaml"
+
+// errPathEscapes is returned when a request-supplied path resolves outside the
+// server's project root.
+var errPathEscapes = errors.New("path escapes the project directory")
+
 // Server wires the HTTP routes to the manager and store.
 type Server struct {
 	store   *store.Store
 	manager *runmanager.Manager
 	token   string
 	version string
+	root    string // project root; request-supplied config paths are confined here
 }
 
-func New(st *store.Store, mgr *runmanager.Manager, token, version string) *Server {
-	return &Server{store: st, manager: mgr, token: token, version: version}
+func New(st *store.Store, mgr *runmanager.Manager, token, version, root string) *Server {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		abs = root
+	}
+	return &Server{store: st, manager: mgr, token: token, version: version, root: filepath.Clean(abs)}
+}
+
+// safeComponent reports whether s is usable as a single path component (a run
+// id or job name): non-empty, not a parent ref, and free of path separators.
+// Request-supplied ids/names are validated with this before they build a file
+// path, preventing traversal (CWE-22).
+func safeComponent(s string) bool {
+	return s != "" && s != "." && s != ".." &&
+		!strings.ContainsAny(s, `/\`) && !strings.Contains(s, "..")
+}
+
+// resolveInRoot resolves a request-supplied config path against the project
+// root and rejects anything that escapes it. An empty path defaults to the
+// project's .local-ci.yaml.
+func (s *Server) resolveInRoot(p string) (string, error) {
+	if p == "" {
+		p = defaultConfigName
+	}
+	abs := p
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(s.root, p)
+	}
+	abs = filepath.Clean(abs)
+	if abs != s.root && !strings.HasPrefix(abs, s.root+string(filepath.Separator)) {
+		return "", errPathEscapes
+	}
+	return abs, nil
 }
 
 // Handler returns the fully-routed, auth-wrapped HTTP handler.
@@ -90,9 +129,10 @@ func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	configFile := req.ConfigFile
-	if configFile == "" {
-		configFile = ".local-ci.yaml"
+	configFile, err := s.resolveInRoot(req.ConfigFile)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "config path is outside the project directory")
+		return
 	}
 	id, err := s.manager.Trigger(engine.Spec{
 		ConfigFile: configFile,
@@ -154,16 +194,21 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLog(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	job := r.URL.Query().Get("job")
 	if job == "" {
 		writeError(w, http.StatusBadRequest, "job query parameter is required (use 'pipeline' for run diagnostics)")
+		return
+	}
+	if !safeComponent(id) || !safeComponent(job) {
+		writeError(w, http.StatusBadRequest, "invalid run id or job name")
 		return
 	}
 	name := job + ".log"
 	if job == "pipeline" {
 		name = "pipeline.log"
 	}
-	path := filepath.Join(s.store.RunDir(r.PathValue("id")), name)
+	path := filepath.Join(s.store.RunDir(id), name)
 	f, err := os.Open(path)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "log not found")
