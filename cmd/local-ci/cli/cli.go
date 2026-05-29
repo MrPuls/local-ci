@@ -86,7 +86,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			bus := engine.NewBus(sinks...)
-			return engine.Run(ctx, engine.Spec{
+			return engine.Run(ctx, engine.NewRunID(), engine.Spec{
 				ConfigFile: configFile,
 				JobNames:   jobs,
 				Stages:     stages,
@@ -115,4 +115,5 @@ func init() {
 	rootCmd.AddCommand(newRunCmd())
 	rootCmd.AddCommand(newRunsCmd())
 	rootCmd.AddCommand(newLogCmd())
+	rootCmd.AddCommand(newServeCmd())
 }
