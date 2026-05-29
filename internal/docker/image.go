@@ -16,17 +16,19 @@ import (
 type ImageManager struct {
 	client  *client.Client
 	adapter ConfigAdapter
+	logger  *log.Logger
 }
 
-func NewImageManager(cli *client.Client, adapter ConfigAdapter) *ImageManager {
+func NewImageManager(cli *client.Client, adapter ConfigAdapter, logger *log.Logger) *ImageManager {
 	return &ImageManager{
 		client:  cli,
 		adapter: adapter,
+		logger:  logger,
 	}
 }
 
 func (i *ImageManager) PullImage(ctx context.Context, image string, options image.PullOptions) (io.ReadCloser, error) {
-	log.Printf("[Docker] Pulling image %q...", image)
+	i.logger.Printf("[Docker] Pulling image %q...", image)
 	hostname := i.adapter.ToImageHostConfig(image)
 	if hostname != "" {
 		configFile := config.LoadDefaultConfigFile(os.Stderr)

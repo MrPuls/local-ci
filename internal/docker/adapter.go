@@ -21,11 +21,13 @@ type ConfigAdapter interface {
 
 type configAdapter struct {
 	config *config.Config
+	logger *log.Logger
 }
 
-func NewConfigAdapter(cfg *config.Config) ConfigAdapter {
+func NewConfigAdapter(cfg *config.Config, logger *log.Logger) ConfigAdapter {
 	return &configAdapter{
 		config: cfg,
+		logger: logger,
 	}
 }
 
@@ -52,7 +54,7 @@ func (a *configAdapter) ToHostConfig(job config.JobConfig) *container.HostConfig
 }
 
 func (a *configAdapter) buildCmd(scripts []string) string {
-	log.Println("[Docker] Preparing scripts...")
+	a.logger.Println("[Docker] Preparing scripts...")
 	return strings.Join(scripts, "&&")
 }
 
@@ -62,7 +64,7 @@ func (a *configAdapter) transformEnvVars(variables map[string]string) []string {
 	}
 
 	var envVars []string
-	log.Println("[Docker] Getting environment variables")
+	a.logger.Println("[Docker] Getting environment variables")
 	maps.Copy(variables, a.config.CLIVariables)
 	for k, v := range variables {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
@@ -89,7 +91,7 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string, job
 		safePath := strings.ReplaceAll(target, "/", "-")
 		sourceName := fmt.Sprintf("%s-%s%s", jobName, cache.Key, safePath)
 
-		log.Printf("[Docker] Creating mount: %s -> %s\n", sourceName, target)
+		a.logger.Printf("[Docker] Creating mount: %s -> %s\n", sourceName, target)
 		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
 			Source: sourceName,
@@ -104,7 +106,7 @@ func (a *configAdapter) getNetworkMode(jobNetwork *config.NetworkConfig) contain
 	if jobNetwork == nil {
 		return ""
 	}
-	log.Println("[Docker] Resolving network mode")
+	a.logger.Println("[Docker] Resolving network mode")
 	var networkMode container.NetworkMode
 	if jobNetwork.HostMode {
 		networkMode = "host"
@@ -116,7 +118,7 @@ func (a *configAdapter) getExtraHosts(jobNetwork *config.NetworkConfig) []string
 	if jobNetwork == nil {
 		return nil
 	}
-	log.Println("[Docker] Resolving extra hosts")
+	a.logger.Println("[Docker] Resolving extra hosts")
 	var extraHosts []string
 	if jobNetwork.HostAccess {
 		extraHosts = append(extraHosts, "host.docker.internal:host-gateway")
