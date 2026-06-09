@@ -134,7 +134,7 @@ watch(
       <div v-if="!hasStreams" class="log-empty">
         <div class="dim" style="font-size: 1.2rem">&gt; NO_LOG_STREAMS_ATTACHED</div>
         <div class="dim" style="margin-top: 6px">
-          OPEN A JOB → INSPECTOR → <span class="accent">[ <Icon name="logs" /> CHECK_LOGS ]</span> TO TAIL ITS OUTPUT_
+          SELECT A JOB IN THE GRAPH → <span class="accent">[ <Icon name="logs" /> CHECK_LOGS ]</span> TO TAIL ITS OUTPUT_
         </div>
         <div class="dim blink" style="margin-top: 6px">_</div>
       </div>

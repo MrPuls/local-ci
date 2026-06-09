@@ -6,12 +6,32 @@ import { useHealth } from '@/composables/useHealth';
 import { useConfig } from '@/composables/useConfig';
 import { useRunStatus } from '@/composables/useRunStatus';
 import { useSettings, type Theme } from '@/composables/useSettings';
+import { useSystem } from '@/composables/useSystem';
 import { baseName } from '@/lib/format';
 
 const { version, online } = useHealth();
 const { config } = useConfig();
 const { summary } = useRunStatus();
 const { settings, cycleTheme } = useSettings();
+const { engine } = useSystem();
+
+// Container-engine (Docker/OrbStack) readiness chip.
+const engineLabel = computed(() => {
+  if (!engine.value) return 'CHECKING';
+  const name = engine.value.provider.toUpperCase().replace(/\s+/g, '_');
+  return engine.value.ready ? name : `${name}_OFFLINE`;
+});
+const engineIcon = computed(() => (engine.value && !engine.value.ready ? 'cross' : 'dot'));
+const engineClass = computed(() => {
+  if (!engine.value) return 'dim';
+  return engine.value.ready ? 'glow-strong' : 'error';
+});
+const engineTitle = computed(() => {
+  if (!engine.value) return 'Checking container engine…';
+  return engine.value.ready
+    ? `${engine.value.provider} ${engine.value.version} — ready to run jobs`
+    : `${engine.value.provider} not reachable — start it to run jobs`;
+});
 
 const filename = computed(() => baseName(config.value?.path));
 const statusClass = computed(() =>
@@ -53,6 +73,12 @@ const themeColor = computed(() => THEME_COLOR[settings.theme]);
         <span :class="[statusClass, 'glow-strong']" data-test-id="run-status-label"
           >{{ summary.label }}_</span
         >
+      </div>
+
+      <div class="dim">|</div>
+      <div style="display: flex; align-items: baseline; gap: 0.5rem" data-test-id="engine-status" :title="engineTitle">
+        <span class="dim">ENGINE:</span>
+        <span :class="engineClass"><Icon :name="engineIcon" glow /> {{ engineLabel }}</span>
       </div>
 
       <div style="display: flex; gap: 0.5rem">

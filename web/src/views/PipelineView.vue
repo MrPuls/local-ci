@@ -57,6 +57,9 @@ onUnmounted(resetStatus);
 // --- run control --------------------------------------------------------
 const mode = ref<RunMode>('sequential');
 const MODES: RunMode[] = ['sequential', 'parallel', 'parallel-stages'];
+function cycleMode(): void {
+  mode.value = MODES[(MODES.indexOf(mode.value) + 1) % MODES.length];
+}
 const canRun = computed(() => !runContext.value?.active);
 const canCancel = computed(() => !!runContext.value?.active);
 const busy = ref(false);
@@ -122,10 +125,16 @@ function closeLog(name: string): void {
   <div class="col" data-test-id="pipeline-view">
     <!-- run control -->
     <div class="panel controls" data-test-id="run-controls">
-      <label for="mode-select">MODE:</label>
-      <select id="mode-select" v-model="mode" class="term" data-test-id="mode-select">
-        <option v-for="m in MODES" :key="m" :value="m">{{ m.toUpperCase() }}</option>
-      </select>
+      <span class="dim">MODE:</span>
+      <button
+        class="btn mode-btn"
+        style="min-width: 11rem; text-align: center"
+        data-test-id="mode-select"
+        title="CYCLE_RUN_MODE"
+        @click="cycleMode"
+      >
+        {{ mode.toUpperCase() }}
+      </button>
       <button
         class="btn btn-accent"
         data-test-id="run-pipeline"

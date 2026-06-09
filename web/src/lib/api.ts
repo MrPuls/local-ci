@@ -1,4 +1,11 @@
-import type { ConfigGraph, Health, Run, RunListResponse, RunMode } from './types';
+import type {
+  ConfigGraph,
+  Health,
+  Run,
+  RunListResponse,
+  RunMode,
+  SystemInfo,
+} from './types';
 
 // Base is empty in browser dev (same-origin via the Vite proxy) and in Tauri;
 // the proxy/shell supplies the bearer token, so it never lives here.
@@ -44,9 +51,37 @@ export function getConfig(): Promise<ConfigGraph> {
   return getJSON<ConfigGraph>('/api/config');
 }
 
-export async function listRuns(limit = 50): Promise<Run[]> {
-  const data = await getJSON<RunListResponse>(`/api/runs?all=true&limit=${limit}`);
-  return data.runs ?? [];
+export function getSystem(): Promise<SystemInfo> {
+  return getJSON<SystemInfo>('/api/system');
+}
+
+export interface RunPage {
+  runs: Run[];
+  total: number;
+}
+
+/** One page of run history (newest first), with the total count for paging. */
+export async function listRunsPage(limit = 25, offset = 0): Promise<RunPage> {
+  const data = await getJSON<RunListResponse>(
+    `/api/runs?all=true&limit=${limit}&offset=${offset}`,
+  );
+  return { runs: data.runs ?? [], total: data.total ?? 0 };
+}
+
+/** Delete a single finished run (row, jobs, and log files). */
+export async function deleteRun(id: string): Promise<void> {
+  await request(`/api/runs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Delete all but the `keep` most recent runs. Returns how many were removed. */
+export async function cleanupRuns(keep: number, all = true): Promise<number> {
+  const res = await request('/api/runs/cleanup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keep, all }),
+  });
+  const data = (await res.json()) as { deleted: number };
+  return data.deleted ?? 0;
 }
 
 export function getRun(id: string): Promise<Run> {

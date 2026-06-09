@@ -39,6 +39,19 @@ export function shortId(id: string): string {
   return id.length > 20 ? id.slice(0, 20) + '…' : id;
 }
 
+/** Byte count as "0 B" / "12.4 KB" / "1.2 MB" (binary units). */
+export function fmtBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let n = bytes;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${i === 0 ? n : n.toFixed(1)} ${units[i]}`;
+}
+
 /** Final path component, e.g. "/proj/.local-ci.yaml" -> ".LOCAL-CI.YAML". */
 export function baseName(path?: string): string {
   if (!path) return '--';

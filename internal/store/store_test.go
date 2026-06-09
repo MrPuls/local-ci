@@ -85,7 +85,7 @@ func TestListRunsFiltersByProjectNewestFirst(t *testing.T) {
 	mk("b", "/p1", time.Second)
 	mk("c", "/p2", 2*time.Second)
 
-	p1, err := s.ListRuns("/p1", false, 10)
+	p1, err := s.ListRuns("/p1", false, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRuns: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestListRunsFiltersByProjectNewestFirst(t *testing.T) {
 		t.Errorf("p1 runs = %v, want [b a] newest first", ids(p1))
 	}
 
-	all, err := s.ListRuns("", true, 10)
+	all, err := s.ListRuns("", true, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRuns all: %v", err)
 	}

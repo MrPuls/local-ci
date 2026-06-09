@@ -59,8 +59,9 @@ type Job struct {
 
 // Store wraps the SQLite database and the run-log root directory.
 type Store struct {
-	db   *sql.DB
-	root string // <xdg>/local-ci
+	db     *sql.DB
+	root   string // <xdg>/local-ci
+	dbPath string // the SQLite file path
 }
 
 // DefaultDBPath returns the standard database path under the XDG data dir.
@@ -94,7 +95,7 @@ func Open(dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-	s := &Store{db: db, root: root}
+	s := &Store{db: db, root: root, dbPath: dbPath}
 	if err := s.migrate(); err != nil {
 		db.Close()
 		return nil, err
@@ -122,6 +123,9 @@ func (s *Store) Close() error { return s.db.Close() }
 
 // Root returns the store's base directory (<xdg>/local-ci).
 func (s *Store) Root() string { return s.root }
+
+// DBPath returns the SQLite database file path.
+func (s *Store) DBPath() string { return s.dbPath }
 
 // RunDir returns the directory holding a run's log files.
 func (s *Store) RunDir(id string) string { return filepath.Join(s.root, "runs", id) }
@@ -167,19 +171,22 @@ func (s *Store) FinishJob(id int64, status string, finishedAt time.Time, dur tim
 	return err
 }
 
-// ListRuns returns the most recent runs, newest first. When all is false the
-// list is restricted to projectPath. limit <= 0 defaults to 20.
-func (s *Store) ListRuns(projectPath string, all bool, limit int) ([]Run, error) {
+// ListRuns returns runs newest first, skipping offset and capped at limit. When
+// all is false the list is restricted to projectPath. limit <= 0 defaults to 20.
+func (s *Store) ListRuns(projectPath string, all bool, limit, offset int) ([]Run, error) {
 	if limit <= 0 {
 		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	const cols = `id, project_path, config_path, mode, status, started_at, finished_at, duration_ms, error`
 	var rows *sql.Rows
 	var err error
 	if all {
-		rows, err = s.db.Query(`SELECT `+cols+` FROM runs ORDER BY started_at DESC LIMIT ?`, limit)
+		rows, err = s.db.Query(`SELECT `+cols+` FROM runs ORDER BY started_at DESC LIMIT ? OFFSET ?`, limit, offset)
 	} else {
-		rows, err = s.db.Query(`SELECT `+cols+` FROM runs WHERE project_path=? ORDER BY started_at DESC LIMIT ?`, projectPath, limit)
+		rows, err = s.db.Query(`SELECT `+cols+` FROM runs WHERE project_path=? ORDER BY started_at DESC LIMIT ? OFFSET ?`, projectPath, limit, offset)
 	}
 	if err != nil {
 		return nil, err
@@ -195,6 +202,69 @@ func (s *Store) ListRuns(projectPath string, all bool, limit int) ([]Run, error)
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// CountRuns returns the total number of runs (for pagination), scoped to
+// projectPath unless all is true.
+func (s *Store) CountRuns(projectPath string, all bool) (int, error) {
+	var n int
+	var err error
+	if all {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM runs`).Scan(&n)
+	} else {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM runs WHERE project_path=?`, projectPath).Scan(&n)
+	}
+	return n, err
+}
+
+// DeleteRun removes a run, its job rows, and its on-disk log directory. A
+// missing log directory is not an error.
+func (s *Store) DeleteRun(id string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM jobs WHERE run_id=?`, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM runs WHERE id=?`, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return os.RemoveAll(s.RunDir(id))
+}
+
+// OldRunIDs returns the ids of every run beyond the keep most recent (newest
+// first), scoped to projectPath unless all is true — the candidates for cleanup.
+func (s *Store) OldRunIDs(projectPath string, all bool, keep int) ([]string, error) {
+	if keep < 0 {
+		keep = 0
+	}
+	var rows *sql.Rows
+	var err error
+	if all {
+		rows, err = s.db.Query(`SELECT id FROM runs ORDER BY started_at DESC LIMIT -1 OFFSET ?`, keep)
+	} else {
+		rows, err = s.db.Query(`SELECT id FROM runs WHERE project_path=? ORDER BY started_at DESC LIMIT -1 OFFSET ?`, projectPath, keep)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // GetRun returns a single run by id, or ErrNotFound.

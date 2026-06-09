@@ -39,11 +39,30 @@ export interface Run {
 
 export interface RunListResponse {
   runs: Run[];
+  total: number;
 }
 
 export interface Health {
   status: string;
   version: string;
+}
+
+// GET /api/system — container-engine status + history DB location/size.
+// Mirrors internal/server/server.go (systemJSON) and internal/docker (Status).
+export interface EngineStatus {
+  ready: boolean;
+  provider: string; // Docker | Docker Desktop | OrbStack | …
+  version: string;
+}
+
+export interface DbInfo {
+  path: string;
+  sizeBytes: number;
+}
+
+export interface SystemInfo {
+  engine: EngineStatus;
+  db: DbInfo;
 }
 
 export interface GraphJob {

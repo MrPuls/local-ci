@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MrPuls/local-ci/internal/docker"
 	"github.com/MrPuls/local-ci/internal/engine"
 	"github.com/MrPuls/local-ci/internal/runmanager"
 	"github.com/MrPuls/local-ci/internal/store"
@@ -64,10 +65,13 @@ func safeComponent(s string) bool {
 func (s *Server) Handler() http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/health", s.handleHealth)
+	api.HandleFunc("GET /api/system", s.handleSystem)
 	api.HandleFunc("POST /api/runs", s.handleTrigger)
+	api.HandleFunc("POST /api/runs/cleanup", s.handleCleanup)
 	api.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancel)
 	api.HandleFunc("GET /api/runs", s.handleListRuns)
 	api.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
+	api.HandleFunc("DELETE /api/runs/{id}", s.handleDeleteRun)
 	api.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
 	api.HandleFunc("GET /api/runs/{id}/log", s.handleLog)
 	api.HandleFunc("GET /api/config", s.handleConfig)
@@ -144,6 +148,30 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 }
 
+type systemJSON struct {
+	Engine docker.Status `json:"engine"`
+	DB     dbJSON        `json:"db"`
+}
+
+type dbJSON struct {
+	Path      string `json:"path"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
+
+// handleSystem reports the container-engine status (so the UI can show whether
+// Docker/OrbStack is up and ready) and the history database's location + size.
+func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
+	db := dbJSON{Path: s.store.DBPath()}
+	if fi, err := os.Stat(db.Path); err == nil {
+		db.SizeBytes = fi.Size()
+	}
+	// Under WAL mode the -wal sidecar can hold a meaningful chunk of the data.
+	if fi, err := os.Stat(db.Path + "-wal"); err == nil {
+		db.SizeBytes += fi.Size()
+	}
+	writeJSON(w, http.StatusOK, systemJSON{Engine: docker.Probe(r.Context()), DB: db})
+}
+
 type triggerRequest struct {
 	Jobs   []string `json:"jobs"`
 	Stages []string `json:"stages"`
@@ -188,7 +216,13 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	project := q.Get("project")
 	all := q.Get("all") == "true" || project == ""
 	limit := atoiDefault(q.Get("limit"), 50)
-	runs, err := s.store.ListRuns(project, all, limit)
+	offset := atoiDefault(q.Get("offset"), 0)
+	runs, err := s.store.ListRuns(project, all, limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	total, err := s.store.CountRuns(project, all)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -197,7 +231,63 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	for _, run := range runs {
 		out = append(out, toRunJSON(run, nil))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": out})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": out, "total": total})
+}
+
+// handleDeleteRun removes a finished run (its row, job rows, and log files). An
+// active run must be cancelled first.
+func (s *Server) handleDeleteRun(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !safeComponent(id) {
+		writeError(w, http.StatusBadRequest, "invalid run id")
+		return
+	}
+	if _, err := s.store.GetRun(id); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "run not found")
+		return
+	}
+	if s.manager.Active(id) {
+		writeError(w, http.StatusConflict, "run is still active; cancel it first")
+		return
+	}
+	if err := s.store.DeleteRun(id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+type cleanupRequest struct {
+	Keep int  `json:"keep"`
+	All  bool `json:"all"`
+}
+
+// handleCleanup deletes all but the `keep` most recent runs (active runs are
+// always skipped). Scope follows `all`: every project, or just this one.
+func (s *Server) handleCleanup(w http.ResponseWriter, r *http.Request) {
+	var req cleanupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	project, _ := os.Getwd()
+	ids, err := s.store.OldRunIDs(project, req.All, req.Keep)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	deleted := 0
+	for _, id := range ids {
+		if s.manager.Active(id) {
+			continue
+		}
+		if err := s.store.DeleteRun(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		deleted++
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"deleted": deleted})
 }
 
 func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
