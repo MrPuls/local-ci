@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import Icon from './Icon.vue';
 import StatusTag from './StatusTag.vue';
 import type { LogLine } from '@/lib/events';
 import type { UiStatus } from '@/lib/types';
@@ -85,7 +86,7 @@ watch(
       aria-label="Restore log feed"
       @click.stop="emit('restore')"
     >
-      [ ▲ ]
+      <Icon name="chevron-up" />
     </button>
   </section>
 
@@ -114,13 +115,13 @@ watch(
             title="DETACH_STREAM"
             @click="emit('close', job)"
           >
-            ✕
+            <Icon name="cross" />
           </button>
         </span>
       </div>
-      <span v-if="isStreaming" class="accent glow-strong blink">● STREAMING_</span>
+      <span v-if="isStreaming" class="accent glow-strong blink"><Icon name="dot" glow /> STREAMING_</span>
       <button class="log-ctl" aria-label="Minimize log feed" title="MINIMIZE_LOG_FEED" @click="emit('minimize')">
-        [ ▾ ]
+        <Icon name="chevron-down" />
       </button>
     </div>
 
@@ -133,7 +134,7 @@ watch(
       <div v-if="!hasStreams" class="log-empty">
         <div class="dim" style="font-size: 1.2rem">&gt; NO_LOG_STREAMS_ATTACHED</div>
         <div class="dim" style="margin-top: 6px">
-          OPEN A JOB → INSPECTOR → <span class="accent">[ ⊳ CHECK_LOGS ]</span> TO TAIL ITS OUTPUT_
+          OPEN A JOB → INSPECTOR → <span class="accent">[ <Icon name="logs" /> CHECK_LOGS ]</span> TO TAIL ITS OUTPUT_
         </div>
         <div class="dim blink" style="margin-top: 6px">_</div>
       </div>

@@ -1,13 +1,15 @@
 import type { UiStatus } from './types';
 
-// Status → ASCII glyph + color class + motion, ported from the design
-// (parts.jsx STATUS_META). The system uses no icon font: status is a
-// bracketed glyph in a phosphor color, with a soft pulse only for "running".
+// Status → pixel-grid icon + color class + motion. Each status maps to a crisp
+// SVG from the design set (rendered via <Icon>, inheriting the phosphor color
+// through currentColor); "running" spins. The icon name indexes
+// web/src/assets/icons/<name>.svg.
 
 export type Motion = 'none' | 'pulse';
 
 export interface StatusMeta {
-  glyph: string;
+  /** Icon file name (without extension) under src/assets/icons. */
+  icon: string;
   /** color helper class from tokens.css: '' (fg), 'accent', 'error', 'dim'. */
   cls: '' | 'accent' | 'error' | 'dim';
   label: string;
@@ -15,12 +17,12 @@ export interface StatusMeta {
 }
 
 export const STATUS_META: Record<UiStatus, StatusMeta> = {
-  passed: { glyph: '[OK]', cls: 'accent', label: 'PASSED', motion: 'none' },
-  failed: { glyph: '[XX]', cls: 'error', label: 'FAILED', motion: 'none' },
-  running: { glyph: '[..]', cls: 'accent', label: 'RUNNING', motion: 'pulse' },
-  queued: { glyph: '[//]', cls: 'dim', label: 'QUEUED', motion: 'none' },
-  skipped: { glyph: '[--]', cls: 'dim', label: 'SKIPPED', motion: 'none' },
-  idle: { glyph: '[  ]', cls: 'dim', label: 'IDLE', motion: 'none' },
+  passed: { icon: 'check', cls: 'accent', label: 'PASSED', motion: 'none' },
+  failed: { icon: 'cross', cls: 'error', label: 'FAILED', motion: 'none' },
+  running: { icon: 'spinner', cls: 'accent', label: 'RUNNING', motion: 'pulse' },
+  queued: { icon: 'hourglass', cls: 'dim', label: 'QUEUED', motion: 'none' },
+  skipped: { icon: 'skip', cls: 'dim', label: 'SKIPPED', motion: 'none' },
+  idle: { icon: 'dot', cls: 'dim', label: 'IDLE', motion: 'none' },
 };
 
 export function statusMeta(status: UiStatus): StatusMeta {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import Icon from '@/components/Icon.vue';
 import StatusTag from '@/components/StatusTag.vue';
 import { useRuns } from '@/composables/useRuns';
 import { useRunStatus } from '@/composables/useRunStatus';
@@ -27,7 +28,7 @@ function open(run: Run): void {
       <span>RUN_HISTORY</span>
       <span class="dim" style="font-weight: normal">{{ runs.length }} RUNS</span>
       <button class="log-ctl" style="margin-left: auto" data-test-id="history-refresh" @click="refresh()">
-        ↻ REFRESH
+        <Icon name="refresh" /> REFRESH
       </button>
     </div>
 

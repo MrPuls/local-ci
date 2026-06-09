@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import Icon from '@/components/Icon.vue';
 import PipelineGraph from '@/components/PipelineGraph.vue';
 import Inspector from '@/components/Inspector.vue';
 import LogFeed from '@/components/LogFeed.vue';
@@ -131,15 +132,15 @@ function closeLog(name: string): void {
         :disabled="!canRun || busy"
         @click="onRun"
       >
-        {{ busy ? 'STARTING...' : '▶ RUN_PIPELINE' }}
+        <Icon :name="busy ? 'spinner' : 'play'" :spin="busy" /> {{ busy ? 'STARTING...' : 'RUN_PIPELINE' }}
       </button>
       <button class="btn btn-error" data-test-id="cancel-run" :disabled="!canCancel" @click="onCancel">
-        ■ STOP
+        <Icon name="stop" /> STOP
       </button>
       <span class="grow"></span>
       <span v-if="runId" class="dim" data-test-id="current-run-id">RUN: {{ shortId(runId) }}</span>
       <button class="btn btn-sq" title="RELOAD_CONFIG" data-test-id="reload-config" @click="refreshConfig()">
-        ↻ CONFIG
+        <Icon name="refresh" /> CONFIG
       </button>
     </div>
 

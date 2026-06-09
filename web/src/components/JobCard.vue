@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import Icon from './Icon.vue';
 import { useNow } from '@/composables/useNow';
 import { statusMeta, statusColor, statusGlow, barFillClass } from '@/lib/status';
 import { fmtSeconds } from '@/lib/format';
@@ -10,7 +11,6 @@ const emit = defineEmits<{ (e: 'focus'): void }>();
 
 const now = useNow();
 const m = computed(() => statusMeta(props.node.status));
-const fx = computed(() => (m.value.motion === 'pulse' ? 'soft-pulse' : ''));
 
 // Elapsed for a running job ticks live off the shared clock; finished jobs show
 // their recorded duration; not-yet-run jobs show nothing.
@@ -66,7 +66,9 @@ const showBar = computed(() => ['running', 'passed', 'failed'].includes(props.no
     @keydown.space.prevent="emit('focus')"
   >
     <div class="job-card-hd">
-      <span :class="[m.cls, fx]" data-test-id="job-glyph">{{ m.glyph }}</span>
+      <span :class="m.cls" data-test-id="job-glyph">
+        <Icon :name="m.icon" :spin="m.motion === 'pulse'" glow />
+      </span>
       <span class="glow-strong job-card-title" data-test-id="job-name">{{ node.name }}</span>
       <span class="dim" data-test-id="job-time">{{ timeText }}</span>
     </div>

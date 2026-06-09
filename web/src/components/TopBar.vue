@@ -1,33 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import Icon from '@/components/Icon.vue';
 import { useHealth } from '@/composables/useHealth';
 import { useConfig } from '@/composables/useConfig';
 import { useRunStatus } from '@/composables/useRunStatus';
 import { useSettings, type Theme } from '@/composables/useSettings';
-import { useToast } from '@/composables/useToast';
 import { baseName } from '@/lib/format';
-
-const emit = defineEmits<{ (e: 'open-settings'): void }>();
 
 const { version, online } = useHealth();
 const { config } = useConfig();
 const { summary } = useRunStatus();
 const { settings, cycleTheme } = useSettings();
-const { push } = useToast();
 
 const filename = computed(() => baseName(config.value?.path));
 const statusClass = computed(() =>
   summary.kind === 'error' ? 'error' : summary.kind === 'idle' ? 'dim' : 'accent',
 );
 
-const THEME_GLYPH: Record<Theme, string> = { amber: '🟠', cyan: '🔵', mono: '⚪️' };
-const themeGlyph = computed(() => THEME_GLYPH[settings.theme]);
-
-function onCycleTheme(): void {
-  const next = cycleTheme();
-  push(`> PHOSPHOR_${next.toUpperCase()}_OK_`, 'accent');
-}
+// Theme swatch: a filled circle tinted to each phosphor's foreground color (the
+// active theme is always shown in its own color, regardless of the page theme).
+const THEME_COLOR: Record<Theme, string> = { amber: '#33ff00', cyan: '#00e5ff', mono: '#d4d4d4' };
+const themeColor = computed(() => THEME_COLOR[settings.theme]);
 </script>
 
 <template>
@@ -62,11 +56,8 @@ function onCycleTheme(): void {
       </div>
 
       <div style="display: flex; gap: 0.5rem">
-        <button class="btn btn-sq" data-test-id="cycle-theme" title="CYCLE PHOSPHOR" @click="onCycleTheme">
-          <span style="filter: saturate(1.2)">{{ themeGlyph }}</span>
-        </button>
-        <button class="btn btn-sq" data-test-id="open-settings" title="TWEAKS" @click="emit('open-settings')">
-          ⚙ TWEAKS
+        <button class="btn btn-sq" data-test-id="cycle-theme" title="CYCLE PHOSPHOR" @click="cycleTheme()">
+          <Icon name="circle" glow :style="{ color: themeColor }" />
         </button>
       </div>
     </div>

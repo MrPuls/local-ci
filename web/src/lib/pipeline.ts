@@ -47,14 +47,16 @@ export interface PipelineStage {
 }
 
 // A run job is a matrix variant of a config job when its name is the config
-// name followed by a fan-out suffix (" ..." or "[...]"). Only consulted for
-// jobs the config marks as fanning out (variantCount > 1) to avoid matching
-// unrelated jobs that merely share a prefix.
+// name followed by a fan-out separator. The engine emits "<job>_<key>.<value>"
+// (e.g. "test:matrix_GO.1.23"); we also accept the " ..." / "[...]" forms the
+// GitLab-style designs used. Only consulted for jobs the config marks as
+// fanning out (variantCount > 1) to avoid matching unrelated jobs that merely
+// share a prefix.
 function isVariantOf(runName: string, configName: string): boolean {
   if (runName === configName) return true;
   if (!runName.startsWith(configName)) return false;
   const next = runName.charAt(configName.length);
-  return next === ' ' || next === '[';
+  return next === '_' || next === ' ' || next === '[';
 }
 
 export function mergePipeline(

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import Icon from './Icon.vue';
 import StatusChip from './StatusChip.vue';
 import JobConfigPanel from './JobConfigPanel.vue';
 import TimingPanel from './TimingPanel.vue';
@@ -24,7 +25,6 @@ const TABS: { id: Tab; label: string }[] = [
 
 const now = useNow();
 const m = computed(() => statusMeta(props.node?.status ?? 'idle'));
-const fx = computed(() => (m.value.motion === 'pulse' ? 'soft-pulse' : ''));
 
 const elapsedText = computed(() => {
   const n = props.node;
@@ -49,7 +49,7 @@ const elapsedText = computed(() => {
         aria-label="Close inspector"
         @click="emit('close')"
       >
-        [ X ]
+        <Icon name="cross" />
       </button>
     </div>
 
@@ -57,7 +57,9 @@ const elapsedText = computed(() => {
       <!-- identity -->
       <div>
         <div style="display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap">
-          <span :class="['accent', 'glow-strong', fx]" style="font-size: 1.6rem">{{ m.glyph }}</span>
+          <span class="accent" style="font-size: 1.6rem">
+            <Icon :name="m.icon" :spin="m.motion === 'pulse'" glow />
+          </span>
           <span class="glow-strong" style="font-size: 1.55rem; letter-spacing: 2px" data-test-id="inspector-job-name">{{
             node.name
           }}</span>
@@ -67,9 +69,9 @@ const elapsedText = computed(() => {
         </div>
         <div style="margin-top: 6px; display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center">
           <StatusChip :status="node.status" />
-          <span v-if="elapsedText" class="chip accent">[ ⏱ ] {{ elapsedText }}</span>
+          <span v-if="elapsedText" class="chip accent"><Icon name="clock" /> {{ elapsedText }}</span>
           <span v-else-if="node.ran && node.durationMs > 0" class="chip dim"
-            >[ ⏱ ] {{ fmtSeconds(node.durationMs) }}S</span
+            ><Icon name="clock" /> {{ fmtSeconds(node.durationMs) }}S</span
           >
           <button
             class="btn btn-accent btn-sq"
@@ -79,7 +81,7 @@ const elapsedText = computed(() => {
             title="ATTACH_LOG_STREAM_TO_FEED"
             @click="emit('check-logs', node.name)"
           >
-            {{ logAttached ? '⊳ TAILING' : '⊳ CHECK_LOGS' }}
+            <Icon name="logs" /> {{ logAttached ? 'TAILING' : 'CHECK_LOGS' }}
           </button>
         </div>
       </div>
