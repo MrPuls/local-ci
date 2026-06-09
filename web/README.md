@@ -1,8 +1,12 @@
 # local-ci web UI
 
-A Vue 3 + TypeScript SPA for local-ci, built with **Bun** + **Vite**. It talks to
-a running `local-ci serve` over its HTTP/SSE API and renders the CRT-terminal
-design system. This is the reusable UI core; a later Tauri desktop shell would
+A Vue 3 + TypeScript SPA for local-ci, built with **Bun** + **Vite**, rendering
+the CRT-terminal design system over the engine's HTTP/SSE API.
+
+**To just use it, run `local-ci ui`** — that serves this app (built into
+`internal/web/dist` and embedded into the binary) together with the API from one
+process. This README covers the **frontend dev loop**: a hot-reloading Vite dev
+server pointed at a `local-ci serve` backend. A later Tauri desktop shell would
 package this same app and supply the sidecar URL + token at runtime.
 
 Surfaces:
@@ -13,8 +17,8 @@ Surfaces:
   finished runs are driven by the same SSE stream.
 - **Run history** (`/history`) — past runs from `GET /api/runs`; click a run to
   open it in the pipeline view.
-- **Tweaks** — phosphor theme (amber/cyan/mono) + CRT effect toggles, persisted
-  to `localStorage`.
+- **Theme** — the phosphor theme (amber/cyan/mono) cycles from the top-bar
+  swatch and persists to `localStorage`; the CRT effects are always on.
 
 ## Develop
 
@@ -44,9 +48,13 @@ Prerequisites: [Bun](https://bun.sh) (`bun --version`). No npm/Node required.
 
    ```sh
    bun run typecheck           # vue-tsc
-   bun run build               # type-check + production bundle into dist/
+   bun run build               # type-check + bundle into internal/web/dist (embedded into the binary)
    bun run test                # vitest (harness ready; add specs under test/)
    ```
+
+   The build outputs into `internal/web/dist`, which is committed and embedded
+   by `local-ci ui`. After changing the frontend, run `bun run build` (or
+   `make web` from the repo root) and commit the regenerated `dist`.
 
 ## How it connects
 
@@ -66,8 +74,8 @@ src/
                 status mapping, and the config↔run pipeline merge (pure TS)
   composables/  shared reactive state (settings, toast, health, config, runs,
                 live SSE run, ticking clock, run-status bus)
-  components/   CRT primitives + panels (graph, inspector, log feed, top/status
-                bars, tweaks, toast)
+  components/   CRT primitives + panels (icon, graph, inspector, log feed,
+                top/status bars, toast)
   views/        PipelineView, HistoryView (routed)
   styles/       tokens.css + crt.css (from local-ci-design) + app.css additions
 ```
@@ -86,5 +94,5 @@ later slice.
 
 Interactive elements carry stable `data-test-id` attributes (e.g.
 `run-pipeline`, `cancel-run`, `mode-select`, `job-card-<name>`, `inspector`,
-`log-tab-<job>`, `theme-<name>`, `toggle-<fx>`, `history-row-<id>`) for unit and
-end-to-end tests.
+`log-tab-<job>`, `cycle-theme`, `history-row-<id>`) for unit and end-to-end
+tests.

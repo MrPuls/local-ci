@@ -24,6 +24,8 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Bootstrap scripts
 - Cleanup scripts (companion to bootstrap)
 - Per-job bootstrap and cleanup scripts
+- Web UI: live pipeline graph, streaming job logs, and run control in the browser — served from a single binary with `local-ci ui`
+- Run history: every run is recorded to a local store; inspect it with `local-ci runs` and `local-ci log`
 - Claude Code agent plugin
 
 ## Installation
@@ -41,7 +43,8 @@ brew install --cask MrPuls/local-ci/local-ci
 
 ### Go Install
 
-Requires Go 1.21 or later ([download](https://golang.org/dl/)).
+Requires Go 1.26 or later ([download](https://golang.org/dl/)). The web UI build is
+committed, so the installed binary includes `local-ci ui` with no extra tooling.
 ```bash
 go install github.com/MrPuls/local-ci/cmd/local-ci@latest
 ```
@@ -49,6 +52,17 @@ go install github.com/MrPuls/local-ci/cmd/local-ci@latest
 ### Manual
 
 Download the latest binary for your platform from the [releases page](https://github.com/MrPuls/local-ci/releases).
+
+### Build from source
+
+A `Makefile` wraps the common tasks (run `make help` for the full list). Building
+the UI needs [Bun](https://bun.sh); the Go binary needs Go 1.26+.
+```bash
+make build      # build the web UI + the local-ci binary into ./bin
+make install    # build the UI and `go install` the binary
+```
+After changing anything under `web/`, run `make web` and commit the regenerated
+`internal/web/dist` so the embedded UI stays in sync.
 
 
 ## Usage
@@ -92,6 +106,62 @@ local-ci run --remote <repository_url>
 # Pass additional environment variables with --env/-e
 local-ci run --env NEW_VAR=var_value,SECOND_VAR=new_value
 ```
+
+### Web UI
+
+`local-ci ui` serves the whole web app — its UI **and** API — from this single
+binary, then opens it in your browser. No separate dev server or token to manage.
+
+```bash
+# Serve the UI for the project in the current directory and open a browser
+local-ci ui
+
+# Bind a specific port and don't auto-open a browser
+local-ci ui --port 8080 --no-open
+
+# Use a non-default config file
+local-ci ui --config my-pipeline.yaml
+```
+
+It binds loopback only (`127.0.0.1`) and shows the configured pipeline as a live
+graph: trigger and cancel runs, watch job status update in real time, stream
+logs, and browse run history — all backed by the same engine as `local-ci run`.
+
+> For **frontend development** against a hot-reloading dev server, use
+> `local-ci serve` (the API-only backend) together with the Vite dev server —
+> see [web/README.md](web/README.md).
+
+### Inspecting past runs
+
+Every run (CLI or UI) is recorded to a local history store.
+
+```bash
+# List recent runs for the current project (newest first)
+local-ci runs
+
+# List runs across all projects, capping the count
+local-ci runs --all --limit 50
+
+# Show one run's per-job breakdown
+local-ci runs <run-id>
+
+# Print a recorded run's logs — all jobs, or one job
+local-ci log <run-id>
+local-ci log <run-id> --job Build
+local-ci log <run-id> --job pipeline   # run-level diagnostics
+```
+
+### Command reference
+
+| Command | Description | Flags |
+|---|---|---|
+| `run` | Run the pipeline | `-c/--config`, `-j/--job`, `-s/--stage`, `-r/--remote`, `-e/--env`, `-p/--parallel`, `--parallel-stages`, `--no-record` |
+| `runs [run-id]` | List recorded runs, or show one run's details | `-a/--all`, `-n/--limit` (default 20) |
+| `log <run-id>` | Print a recorded run's logs | `-j/--job` (use `pipeline` for diagnostics) |
+| `ui` | Serve the embedded web UI **and** API from one binary, then open a browser | `--host` (default `127.0.0.1`), `--port` (default `4123`), `-c/--config`, `--no-open` |
+| `serve` | Run the API-only backend (for the web dev server or a future desktop shell) | `--host` (default `127.0.0.1`), `--port` (default ephemeral), `--token` (default random), `-c/--config` |
+
+Global: `local-ci --version`, `local-ci --help`, `local-ci <command> --help`.
 
 ## Quick Start
 

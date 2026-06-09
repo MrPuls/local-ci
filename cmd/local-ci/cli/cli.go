@@ -116,4 +116,5 @@ func init() {
 	rootCmd.AddCommand(newRunsCmd())
 	rootCmd.AddCommand(newLogCmd())
 	rootCmd.AddCommand(newServeCmd())
+	rootCmd.AddCommand(newUICmd())
 }

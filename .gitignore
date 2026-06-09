@@ -27,7 +27,13 @@ go.work.sum
 .idea
 
 dist/
+# ...except the embedded UI build, which is committed so `go build` works
+# without bun and `local-ci ui` is a self-contained binary.
+!internal/web/dist/
 .DS_*
+
+# compiled binaries (Makefile output; goreleaser uses dist/)
+bin/
 
 # local-ci run logs
 .local-ci/

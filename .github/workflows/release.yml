@@ -20,6 +20,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Build the web UI fresh so released binaries always embed the current SPA
+      # (goreleaser's before-hook runs `bun run build` into internal/web/dist).
+      - uses: oven-sh/setup-bun@v2
+
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

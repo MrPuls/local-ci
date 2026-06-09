@@ -2,6 +2,12 @@
 
 ## Table of Contents
 - [Command Line Interface](#command-line-interface)
+   - [`run`](#run--execute-a-pipeline)
+   - [`runs`](#runs--list--inspect-recorded-runs)
+   - [`log`](#log--print-a-recorded-runs-logs)
+   - [`ui`](#ui--serve-the-web-ui-from-this-binary)
+   - [`serve`](#serve--api-only-backend)
+- [Web UI](#web-ui)
 - [Architecture](#architecture)
 - [Pipeline Execution Flow](#pipeline-execution-flow)
    - [1. Configuration Loading and Validation](#1-configuration-loading-and-validation)
@@ -28,30 +34,117 @@
 
 ## Command Line Interface
 
-Local CI features a simple command-line interface:
+Local CI is driven by a handful of subcommands. Run `local-ci <command> --help` for the authoritative flag list.
+
+### `run` — execute a pipeline
 
 ```bash
-# Run pipeline with default config
-local-ci run
-
-# Run pipeline with custom config file
-local-ci run --config my-config.yaml
-
-# Run specific job only
-local-ci run --job JobName
-
-# Run all jobs in parallel
-local-ci run --parallel
-
-# Run stages in order, with jobs inside each stage in parallel
-local-ci run --parallel-stages
-
-# Show version information
-local-ci version
-
-# Get help
-local-ci --help
+local-ci run [flags]
 ```
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--config` | `-c` | `.local-ci.yaml` | Path to the configuration file |
+| `--job` | `-j` | — | Run only the named job(s) (comma-separated) |
+| `--stage` | `-s` | — | Run only the named stage(s) (comma-separated) |
+| `--remote` | `-r` | — | Clone/pull a remote repo and run its `.local-ci.yaml` |
+| `--env` | `-e` | — | Extra environment variables, `KEY=VALUE` (comma-separated) |
+| `--parallel` | `-p` | `false` | Run all selected jobs at once, ignoring stages |
+| `--parallel-stages` | | `false` | Run stages in order, jobs within a stage in parallel |
+| `--no-record` | | `false` | Don't record this run to the local history store |
+
+`--parallel` and `--parallel-stages` are mutually exclusive. See [Parallel Execution](#parallel-execution).
+
+### `runs` — list / inspect recorded runs
+
+```bash
+local-ci runs            # list recent runs for the current project (newest first)
+local-ci runs --all      # include every project
+local-ci runs <run-id>   # show one run's per-job breakdown
+```
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--all` | `-a` | `false` | List runs from all projects, not just the current directory |
+| `--limit` | `-n` | `20` | Maximum number of runs to list |
+
+### `log` — print a recorded run's logs
+
+```bash
+local-ci log <run-id>                 # every job's log
+local-ci log <run-id> --job Build     # one job
+local-ci log <run-id> --job pipeline  # run-level diagnostics
+```
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--job` | `-j` | — | Show only this job's log (`pipeline` for run diagnostics) |
+
+### `ui` — serve the web UI from this binary
+
+```bash
+local-ci ui                       # serve the UI + API and open a browser
+local-ci ui --port 8080 --no-open
+```
+
+Serves the embedded single-page app **and** the JSON/SSE API from one loopback process — no separate dev server or token. See [Web UI](#web-ui).
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Interface to bind (loopback by default) |
+| `--port` | `4123` | Port to bind |
+| `--config` / `-c` | `.local-ci.yaml` | Project config the UI operates on |
+| `--no-open` | `false` | Don't open a browser automatically |
+
+### `serve` — API-only backend
+
+```bash
+local-ci serve --port 4123 --token dev
+```
+
+Runs the same HTTP/SSE API as `ui` but **without** the embedded UI — for the Vite dev server during frontend work, or a future desktop shell. See [Web UI](#web-ui).
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Interface to bind |
+| `--port` | `0` (ephemeral) | Port to bind |
+| `--token` | random per launch | Bearer token clients must present (also accepted as `?token=` for SSE) |
+| `--config` / `-c` | `.local-ci.yaml` | Project config the server operates on |
+
+### Other
+
+```bash
+local-ci --version    # print the version
+local-ci --help       # top-level help
+```
+
+## Web UI
+
+Local CI ships a browser UI — a Vue 3 single-page app (in `web/`) over the engine's HTTP/SSE API. It renders the configured pipeline as a live DAG, streams job logs, triggers and cancels runs, and browses run history. Runs started from the UI execute on the same engine, recorder, and history store as `local-ci run`, so a UI run and a CLI run are recorded identically.
+
+Two commands serve it:
+
+| | `local-ci ui` | `local-ci serve` |
+|---|---|---|
+| **Serves** | UI **and** API (one process) | API only |
+| **Auth** | none (loopback, same-origin) | bearer token (random per launch, or `--token`) |
+| **Use for** | running the UI | frontend dev (with the Vite dev server) or a desktop shell |
+
+### How `ui` works
+
+- The web app is built (`bun run build`) into `internal/web/dist` and embedded into the binary with `//go:embed`. `local-ci ui` serves those static assets for all non-`/api` routes, and the JSON/SSE API under `/api`, from a single loopback server.
+- Because the browser is same-origin with the API and the server binds `127.0.0.1`, the `ui` server runs **without** a bearer token. The `/api` surface stays token-guarded in `serve` mode, where the browser reaches it through the Vite dev proxy (which injects the token, including on the SSE stream).
+- The live event stream is Server-Sent Events: `GET /api/runs/{id}/events` replays a run's event log from the start and then continues live, so the same endpoint drives both active and finished runs.
+
+### Building the UI
+
+The built `internal/web/dist` is committed, so `go build` / `go install` include the UI with no extra tooling. When you change anything under `web/`, rebuild and commit it:
+
+```bash
+make web    # cd web && bun install && bun run build
+```
+
+Releases rebuild the UI fresh (a goreleaser before-hook runs `bun run build`), so published binaries always embed the current SPA. See [web/README.md](../web/README.md) for the frontend dev loop.
 
 ## Architecture
 

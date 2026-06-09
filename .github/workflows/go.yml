@@ -31,3 +31,25 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+  # The web UI (web/) is built into internal/web/dist and embedded into the
+  # binary. This job keeps the SPA itself healthy (type-checks + builds it);
+  # the committed dist is what the Go build above embeds.
+  web:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Install deps
+      run: cd web && bun install --frozen-lockfile
+
+    - name: Type-check
+      run: cd web && bun run typecheck
+
+    - name: Build UI
+      run: cd web && bun run build

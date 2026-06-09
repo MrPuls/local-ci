@@ -7,6 +7,8 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,7 +31,15 @@ type Server struct {
 	// fixed at startup (a trusted operator setting) and never derived from a
 	// request, so no request data ever reaches a config file path.
 	configPath string
+	// uiFS, when set (via SetUI), is the embedded SPA served for all non-/api
+	// routes. Nil in API-only mode (`serve`, the dev/sidecar backend).
+	uiFS fs.FS
 }
+
+// SetUI enables serving the embedded single-page app (and its assets) for every
+// non-/api route. The API stays token-guarded; the UI is served unauthenticated
+// (it's loopback, same-origin with the API, and carries no secrets).
+func (s *Server) SetUI(f fs.FS) { s.uiFS = f }
 
 func New(st *store.Store, mgr *runmanager.Manager, token, version, configPath string) *Server {
 	abs, err := filepath.Abs(configPath)
@@ -48,19 +58,60 @@ func safeComponent(s string) bool {
 		!strings.ContainsAny(s, `/\`) && !strings.Contains(s, "..")
 }
 
-// Handler returns the fully-routed, auth-wrapped HTTP handler.
+// Handler returns the fully-routed HTTP handler: a token-guarded /api surface
+// and, when a UI is set, the embedded SPA served unauthenticated for all other
+// routes.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("POST /api/runs", s.handleTrigger)
-	mux.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancel)
-	mux.HandleFunc("GET /api/runs", s.handleListRuns)
-	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
-	mux.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
-	mux.HandleFunc("GET /api/runs/{id}/log", s.handleLog)
-	mux.HandleFunc("GET /api/config", s.handleConfig)
-	mux.HandleFunc("POST /api/config/validate", s.handleValidate)
-	return s.auth(mux)
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/health", s.handleHealth)
+	api.HandleFunc("POST /api/runs", s.handleTrigger)
+	api.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancel)
+	api.HandleFunc("GET /api/runs", s.handleListRuns)
+	api.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
+	api.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
+	api.HandleFunc("GET /api/runs/{id}/log", s.handleLog)
+	api.HandleFunc("GET /api/config", s.handleConfig)
+	api.HandleFunc("POST /api/config/validate", s.handleValidate)
+
+	// API-only (serve / dev / Tauri sidecar): exactly the previous behaviour.
+	if s.uiFS == nil {
+		return s.auth(api)
+	}
+	// UI mode (`local-ci ui`): /api stays guarded, everything else is the SPA.
+	root := http.NewServeMux()
+	root.Handle("/api/", s.auth(api))
+	root.Handle("/", s.uiHandler())
+	return root
+}
+
+// uiHandler serves the embedded SPA: a static asset when the path matches a
+// built file, otherwise index.html so a refresh or deep link still boots the
+// app (the hash router then takes over).
+func (s *Server) uiHandler() http.Handler {
+	files := http.FileServerFS(s.uiFS)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if name != "" {
+			if f, err := s.uiFS.Open(name); err == nil {
+				f.Close()
+				files.ServeHTTP(w, r)
+				return
+			}
+		}
+		f, err := s.uiFS.Open("index.html")
+		if err != nil {
+			http.Error(w, "web UI not built", http.StatusNotImplemented)
+			return
+		}
+		defer f.Close()
+		rs, ok := f.(io.ReadSeeker)
+		if !ok {
+			http.Error(w, "web UI index not seekable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		http.ServeContent(w, r, "index.html", time.Time{}, rs)
+	})
 }
 
 // auth enforces the loopback bearer token. The token is also accepted as a

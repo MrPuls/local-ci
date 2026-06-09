@@ -32,6 +32,12 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
+    // Build into the Go tree so `internal/web` can //go:embed it for the
+    // single-binary `local-ci ui`. (Dev still uses the Vite server + proxy.)
+    build: {
+      outDir: fileURLToPath(new URL('../internal/web/dist', import.meta.url)),
+      emptyOutDir: true,
+    },
     server: {
       proxy: { '/api': apiProxy },
     },
