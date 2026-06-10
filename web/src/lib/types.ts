@@ -65,12 +65,22 @@ export interface SystemInfo {
   db: DbInfo;
 }
 
+export interface GraphService {
+  alias: string;
+  image: string;
+}
+
 export interface GraphJob {
   name: string;
   stage: string;
   image: string;
   parallel: boolean;
   variantCount: number; // >1 when the job fans out via matrix
+  timeout?: string; // per-attempt limit, e.g. "10m"
+  retry?: number; // extra attempts on failure
+  needs?: string[]; // DAG dependencies
+  services?: GraphService[]; // sidecar containers
+  artifacts?: string[]; // produced paths
 }
 
 export interface ConfigGraph {

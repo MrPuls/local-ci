@@ -21,11 +21,21 @@ type configGraph struct {
 }
 
 type graphJob struct {
-	Name         string `json:"name"`
-	Stage        string `json:"stage"`
-	Image        string `json:"image"`
-	Parallel     bool   `json:"parallel"`
-	VariantCount int    `json:"variantCount"` // >1 when the job fans out via matrix
+	Name         string         `json:"name"`
+	Stage        string         `json:"stage"`
+	Image        string         `json:"image"`
+	Parallel     bool           `json:"parallel"`
+	VariantCount int            `json:"variantCount"` // >1 when the job fans out via matrix
+	Timeout      string         `json:"timeout,omitempty"`
+	Retry        int            `json:"retry,omitempty"`
+	Needs        []string       `json:"needs,omitempty"`
+	Services     []graphService `json:"services,omitempty"`
+	Artifacts    []string       `json:"artifacts,omitempty"`
+}
+
+type graphService struct {
+	Alias string `json:"alias"`
+	Image string `json:"image"`
 }
 
 // buildConfigGraph loads and validates the server's active project config and
@@ -50,13 +60,25 @@ func (s *Server) buildConfigGraph() configGraph {
 		if err != nil {
 			count = 0
 		}
-		g.Jobs = append(g.Jobs, graphJob{
+		gj := graphJob{
 			Name:         j.Name,
 			Stage:        j.Stage,
 			Image:        j.Image,
 			Parallel:     j.IsParallel(),
 			VariantCount: count,
-		})
+			Retry:        j.Retry,
+			Needs:        j.Needs,
+		}
+		if j.Timeout > 0 {
+			gj.Timeout = j.Timeout.Std().String()
+		}
+		for _, svc := range j.Services {
+			gj.Services = append(gj.Services, graphService{Alias: svc.EffectiveAlias(), Image: svc.Image})
+		}
+		if j.Artifacts != nil {
+			gj.Artifacts = j.Artifacts.Paths
+		}
+		g.Jobs = append(g.Jobs, gj)
 	}
 	return g
 }

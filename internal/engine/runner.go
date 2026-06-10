@@ -15,6 +15,7 @@ import (
 	"github.com/MrPuls/local-ci/internal/integrations/cmd"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 )
 
@@ -77,6 +78,15 @@ func (r *Runner) Run(executor JobExecutor) error {
 
 	if len(r.jobs) == 0 {
 		return fmt.Errorf("Job list is empty, nothing to run ¯\\_(ツ)_/¯\naborting... ")
+	}
+
+	// 'needs' supersedes the run mode: dependency order subsumes both the
+	// sequential chain and the stage barriers.
+	if hasNeeds(r.jobs) {
+		if r.mode != ModeSequential {
+			r.diagf("Config uses 'needs'; run mode is superseded by dependency (DAG) order")
+		}
+		return r.runDAG(executor)
 	}
 
 	switch r.mode {
@@ -292,12 +302,40 @@ func (r *Runner) runJob(executor JobExecutor, j config.JobConfig, exec ExecKind,
 	return err
 }
 
+// runJobInner runs a job's attempts: up to 1+retry tries, each under the
+// job's own timeout when one is set. A cancelled run is never retried.
 func (r *Runner) runJobInner(executor JobExecutor, j config.JobConfig, out io.Writer) error {
+	attempts := j.Retry + 1
+	var err error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if attempt > 1 {
+			r.notice("Job %s failed, retrying (attempt %d/%d)...\n", j.Name, attempt, attempts)
+		}
+		err = r.runJobAttempt(executor, j, out)
+		if err == nil || r.ctx.Err() != nil {
+			break
+		}
+	}
+	return err
+}
+
+func (r *Runner) runJobAttempt(executor JobExecutor, j config.JobConfig, out io.Writer) error {
+	ctx := r.ctx
+	if j.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, j.Timeout.Std())
+		defer cancel()
+	}
+
 	if err := cmd.RunJobBootstrap(j.JobBootstrap, j.Variables, out, r.diag); err != nil {
 		return fmt.Errorf("Job %s bootstrap failed: %w", j.Name, err)
 	}
 
-	jobErr := executor.Execute(r.ctx, j, out)
+	jobErr := executor.Execute(ctx, j, out)
+	// Distinguish the job's own deadline from a run-wide cancellation.
+	if jobErr != nil && ctx.Err() == context.DeadlineExceeded && r.ctx.Err() == nil {
+		jobErr = fmt.Errorf("timed out after %s: %w", j.Timeout.Std(), jobErr)
+	}
 
 	if cleanupErr := cmd.RunJobCleanup(j.JobCleanup, j.Variables, out, r.diag); cleanupErr != nil {
 		return fmt.Errorf("Job %s cleanup failed: %v", j.Name, cleanupErr)
@@ -352,6 +390,21 @@ func (r *Runner) Cleanup(ctx context.Context) error {
 		}
 	}
 	r.diagf("All containers removed!")
+
+	// Sweep leftover service networks (normally removed with their job; this
+	// catches crashes and cancellations mid-teardown).
+	networks, netListErr := cm.ListNetworks(ctx, network.ListOptions{
+		Filters: filters.NewArgs(filters.Arg("label", "created_by=local-ci")),
+	})
+	if netListErr != nil {
+		return netListErr
+	}
+	for _, n := range networks {
+		r.diagf("Deleting network: %q, %v", n.ID, n.Name)
+		if rmErr := cm.RemoveNetwork(ctx, n.ID); rmErr != nil {
+			return rmErr
+		}
+	}
 
 	return nil
 }

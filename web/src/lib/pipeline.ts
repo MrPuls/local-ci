@@ -31,6 +31,11 @@ export interface PipelineNode {
   image?: string;
   parallel: boolean;
   variantCount: number;
+  timeout?: string;
+  retry?: number;
+  needs?: string[];
+  services?: { alias: string; image: string }[];
+  artifacts?: string[];
   status: UiStatus;
   startedAt?: string;
   durationMs: number;
@@ -84,6 +89,11 @@ export function mergePipeline(
     image: c?.image,
     parallel: c?.parallel ?? r.execKind === 'detached',
     variantCount: c?.variantCount ?? 1,
+    timeout: c?.timeout,
+    retry: c?.retry,
+    needs: c?.needs,
+    services: c?.services,
+    artifacts: c?.artifacts,
     status: r.status,
     startedAt: r.startedAt,
     durationMs: r.durationMs,
@@ -100,6 +110,11 @@ export function mergePipeline(
     image: c.image,
     parallel: c.parallel,
     variantCount: c.variantCount,
+    timeout: c.timeout,
+    retry: c.retry,
+    needs: c.needs,
+    services: c.services,
+    artifacts: c.artifacts,
     status,
     durationMs: 0,
     configured: true,

@@ -18,6 +18,10 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Parallel job execution (all jobs at once, or per-stage) with a live status board
 - Per-job `parallel: true` keyword for detaching individual jobs from the sequential chain
 - Matrix builds: parametrize a job with `matrix:` to fan it out across variable combinations
+- Services: sidecar containers (databases, caches) on a private per-job network with readiness gates — `services: [postgres:16]`
+- Artifacts: pass build outputs from one job to the next with `artifacts: paths: [...]`
+- DAG scheduling: `needs: [job]` starts a job the moment its dependencies pass instead of waiting for the stage barrier
+- Per-job `timeout:` and `retry:` for slow or flaky jobs
 - Templates and includes: factor common config into `.dot-prefixed` templates and pull shared files with `include:`
 - Stage placeholders: splice an included file's stages into the main pipeline at a chosen position
 - GitLab utils

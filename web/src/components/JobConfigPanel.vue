@@ -31,6 +31,36 @@ const execKind = computed(() => (props.node.execKind || 'standalone').toUpperCas
         <div class="v">{{ node.parallel ? 'YES' : 'NO' }}</div>
         <div class="k">VARIANTS</div>
         <div class="v">{{ node.variantCount > 1 ? `${node.variantCount} (MATRIX)` : '1' }}</div>
+        <template v-if="node.timeout">
+          <div class="k">TIMEOUT</div>
+          <div class="v">{{ node.timeout.toUpperCase() }}</div>
+        </template>
+        <template v-if="node.retry">
+          <div class="k">RETRY</div>
+          <div class="v">{{ node.retry }} ATTEMPT{{ node.retry === 1 ? '' : 'S' }}</div>
+        </template>
+        <template v-if="node.needs?.length">
+          <div class="k">NEEDS</div>
+          <div class="v alt">{{ node.needs.join(', ') }}</div>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="node.services?.length">
+      <div class="dim" style="margin-bottom: 4px">&gt; SERVICES_</div>
+      <div class="kv">
+        <template v-for="svc in node.services" :key="svc.alias">
+          <div class="k">{{ svc.alias }}</div>
+          <div class="v">{{ svc.image }}</div>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="node.artifacts?.length">
+      <div class="dim" style="margin-bottom: 4px">&gt; ARTIFACTS_</div>
+      <div class="kv">
+        <div class="k">PATHS</div>
+        <div class="v alt">{{ node.artifacts.join(', ') }}</div>
       </div>
     </div>
 

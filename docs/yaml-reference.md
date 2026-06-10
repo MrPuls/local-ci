@@ -24,6 +24,11 @@
     - [parallel](#parallel)
     - [matrix](#matrix)
     - [extends](#extends)
+    - [timeout](#timeout)
+    - [retry](#retry)
+    - [services](#services)
+    - [artifacts](#artifacts)
+    - [needs](#needs)
 - [Variable Handling](#variable-handling)
 - [Templates](#templates)
 - [Stage Placeholders](#stage-placeholders)
@@ -382,6 +387,126 @@ Important: Variants of a job run concurrently in most modes, so avoid sharing a 
     stage: test
     script:
       - go test ./...
+  ```
+
+#### timeout
+- Required: No
+- Type: A Go duration string (`"90s"`, `"10m"`, `"1h30m"`) or a bare integer, read as seconds.
+- Description: Limits how long one attempt of the job may run. When the limit is hit the container is stopped and the attempt fails (and is retried if [`retry`](#retry) allows). Without it, only the run-wide limit applies.
+- Example:
+  ```yaml
+  Test:
+    stage: test
+    image: golang:1.26
+    timeout: 10m
+    script:
+      - go test ./...
+  ```
+
+#### retry
+- Required: No
+- Type: Integer, 0–10.
+- Description: How many extra attempts a failed job gets before it is reported as failed (`retry: 2` means up to 3 attempts). Each attempt is a fresh container; a cancelled run is never retried. Useful for known-flaky integration suites.
+- Example:
+  ```yaml
+  E2E:
+    stage: test
+    image: cypress/included:14
+    retry: 2
+    timeout: 15m
+    script:
+      - cypress run
+  ```
+
+#### services
+- Required: No
+- Type: A list. Each entry is either an image string (`postgres:16`) or a mapping with `image`, optional `alias`, `variables`, and `ready`.
+- Description: Sidecar containers that run for the duration of the job — databases, caches, brokers. Before the job's script starts, the engine creates a private Docker network, starts every service on it, and waits for each to be ready; the job's container joins the same network and reaches each service at its alias (e.g. `postgres://db:5432`). When the job ends — pass, fail, timeout, or cancel — the services and the network are torn down.
+
+  The default alias is the image's last path segment without tag (`postgres:16` → `postgres`; `registry.example.com/team/redis:7` → `redis`). Aliases must be unique within a job. Service log output streams into the job log, line-prefixed with `[svc <alias>]`.
+
+  Readiness (`ready`): with a `command`, the engine execs `/bin/sh -c <command>` inside the service container every second until it exits 0 (e.g. `pg_isready -U postgres`). Without one, it waits for the image's `HEALTHCHECK` to report healthy when the image defines one, otherwise for the container to be running. `ready.timeout` (default 60s) bounds the wait; a service that exits before becoming ready fails the job.
+
+  `services` cannot be combined with `network.host_mode` (the per-job network is exactly what host mode bypasses).
+- Example:
+  ```yaml
+  Integration:
+    stage: test
+    image: golang:1.26
+    services:
+      - image: postgres:16
+        alias: db
+        variables:
+          POSTGRES_PASSWORD: test
+        ready:
+          command: pg_isready -U postgres
+          timeout: 30s
+      - redis:7-alpine
+    variables:
+      DATABASE_URL: postgres://postgres:test@db:5432/postgres
+      REDIS_ADDR: redis:6379
+    script:
+      - go test ./tests/integration/...
+  ```
+
+#### artifacts
+- Required: No
+- Type: A mapping with `paths`, a list of paths relative to the job's `workdir` (no absolute paths, no `..`).
+- Description: Files the job produces for later jobs. After the job succeeds, each path is copied out of its container; every subsequent job in the run gets all artifacts collected so far overlaid onto its workspace (at the same relative paths) before its script starts. A declared path that does not exist when the job finishes fails the job.
+
+  Artifacts live in a run-scoped scratch directory and are discarded when the run ends. They flow in execution order, so they are most useful in sequential, parallel-stages, and [`needs`](#needs) runs; in full `--parallel` mode all jobs start at once, before anything has been collected.
+- Example:
+  ```yaml
+  Build:
+    stage: build
+    image: golang:1.26
+    workdir: /app
+    artifacts:
+      paths:
+        - bin/
+    script:
+      - go build -o bin/app .
+
+  Smoke:
+    stage: test
+    image: alpine:3.21
+    workdir: /app
+    script:
+      - ./bin/app --version
+  ```
+
+#### needs
+- Required: No
+- Type: A single job name or a list of job names.
+- Description: Declares the jobs this job depends on, switching the whole run to dependency (DAG) order: a job starts as soon as everything it needs has passed, instead of waiting for its stage's turn. Jobs *without* `needs` keep stage semantics (they wait for every job in earlier stages), so annotated and plain jobs mix predictably. Jobs downstream of a failure are skipped. When any job declares `needs`, the `--parallel` / `--parallel-stages` flags are superseded by the dependency order.
+
+  References must name existing jobs in the same or an earlier stage, and the graph must be acyclic — both validated at load. Needing a [`matrix`](#matrix) job means needing all of its variants. With `--job`/`--stage` filtering, needs that point outside the selected subset are ignored.
+- Example:
+  ```yaml
+  stages: [build, test, deploy]
+
+  Build:
+    stage: build
+    image: golang:1.26
+    script: [go build ./...]
+
+  Lint:
+    stage: test
+    image: golangci/golangci-lint:v2
+    needs: [Build]
+    script: [golangci-lint run]
+
+  Unit:
+    stage: test
+    image: golang:1.26
+    needs: [Build]
+    script: [go test ./...]
+
+  Ship:
+    stage: deploy
+    image: alpine:3.21
+    needs: [Unit]   # starts when Unit passes, even if Lint is still running
+    script: [./deploy.sh]
   ```
 
 ## Variable Handling
