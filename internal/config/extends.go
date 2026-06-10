@@ -127,5 +127,20 @@ func mergeJobs(base, overlay JobConfig) JobConfig {
 	if len(overlay.Matrix) > 0 {
 		out.Matrix = overlay.Matrix
 	}
+	if overlay.Timeout != 0 {
+		out.Timeout = overlay.Timeout
+	}
+	if overlay.Retry != 0 {
+		out.Retry = overlay.Retry
+	}
+	if len(overlay.Services) > 0 {
+		out.Services = overlay.Services
+	}
+	if overlay.Artifacts != nil {
+		out.Artifacts = overlay.Artifacts
+	}
+	if len(overlay.Needs) > 0 {
+		out.Needs = overlay.Needs
+	}
 	return out
 }

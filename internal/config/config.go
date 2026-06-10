@@ -75,6 +75,26 @@ func (m *MatrixEntry) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// NameList is a YAML field accepting a single name or a list of names
+// (`needs: build` or `needs: [build, lint]`).
+type NameList []string
+
+func (n *NameList) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		*n = []string{node.Value}
+	case yaml.SequenceNode:
+		var list []string
+		if err := node.Decode(&list); err != nil {
+			return fmt.Errorf("name list: %w", err)
+		}
+		*n = list
+	default:
+		return fmt.Errorf("must be a name or a list of names")
+	}
+	return nil
+}
+
 type ExtendsList []string
 
 func (e *ExtendsList) UnmarshalYAML(node *yaml.Node) error {
@@ -93,6 +113,13 @@ func (e *ExtendsList) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// ArtifactsConfig declares files a job produces for later jobs: after the job
+// succeeds, the listed paths (relative to the job's workdir) are copied out of
+// its container and injected into the workspace of every subsequent job.
+type ArtifactsConfig struct {
+	Paths []string `yaml:"paths"`
+}
+
 type JobConfig struct {
 	Name         string              `yaml:"-"`
 	Image        string              `yaml:"image"`
@@ -108,6 +135,11 @@ type JobConfig struct {
 	Matrix       []MatrixEntry       `yaml:"matrix,omitempty"`
 	MatrixGroup  string              `yaml:"-"`
 	Extends      ExtendsList         `yaml:"extends,omitempty"`
+	Timeout      Duration            `yaml:"timeout,omitempty"`
+	Retry        int                 `yaml:"retry,omitempty"`
+	Services     []ServiceConfig     `yaml:"services,omitempty"`
+	Artifacts    *ArtifactsConfig    `yaml:"artifacts,omitempty"`
+	Needs        NameList            `yaml:"needs,omitempty"`
 }
 
 // IsParallel returns true only when the job has explicitly opted into the

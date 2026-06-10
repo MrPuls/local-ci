@@ -143,6 +143,20 @@ JobName:
     run:
       - teardown_command
     timeout: 5
+  timeout: 10m              # per-attempt limit ("90s", "10m", or integer seconds)
+  retry: 2                  # extra attempts on failure (0-10)
+  needs: [OtherJob]         # DAG mode: start when these jobs pass (same/earlier stage)
+  services:                 # sidecar containers on a private per-job network
+    - image: postgres:16
+      alias: db             # reachable at this hostname (default: image basename)
+      variables:
+        POSTGRES_PASSWORD: test
+      ready:
+        command: pg_isready -U postgres   # exec'd in the service until exit 0
+        timeout: 30s
+  artifacts:
+    paths:
+      - dist/               # copied out on success, injected into later jobs
   script:
     - go mod download
     - go build -o /app/bin ./...
@@ -187,16 +201,21 @@ When creating a `.local-ci.yaml`:
 - Choose the Docker image that matches the target environment (e.g. `golang:1.22`, `node:20-alpine`, `python:3.12`)
 - Set `workdir` to where the project code should live inside the container (files are copied there automatically)
 - Use `cache` for dependency directories to avoid re-downloading on subsequent runs
-- Use global `bootstrap`/`cleanup` when all jobs share the same infrastructure
-- Use `job_bootstrap`/`job_cleanup` when only specific jobs need their own infrastructure
+- Prefer `services:` for databases, caches, and brokers a job needs — the engine handles the network, readiness gate, and teardown (reach them at their alias, e.g. `db:5432`)
+- Use `artifacts: paths:` to pass build outputs (binaries, dist folders) to later jobs
+- Use `needs: [job]` when a job only depends on specific earlier jobs — it starts as soon as they pass instead of waiting for the whole stage
+- Add `timeout:` to anything that can hang and `retry:` to known-flaky suites
+- Use global `bootstrap`/`cleanup` when all jobs share the same host-side infrastructure
+- Use `job_bootstrap`/`job_cleanup` for host-side, run-to-completion setup commands (docker login, fetching seeds) — not for daemons; that's what `services:` is for
 - Use `host_access: true` when containers need to reach services running on the host
 
 ## Execution Behavior
 
 - Project files are automatically copied into each container (respecting `.gitignore`)
 - Jobs within the same stage run sequentially
-- If any job fails, the pipeline stops (remaining jobs are skipped)
-- Containers are automatically cleaned up after execution
+- If any job declares `needs:`, the run switches to dependency (DAG) order; jobs without `needs` still wait for all earlier stages
+- If any job fails, the pipeline stops (remaining jobs are skipped); jobs downstream of a failed `needs:` dependency are skipped
+- Containers, service sidecars, and per-job networks are automatically cleaned up after execution
 - Cache volumes persist across runs for faster subsequent executions
 - Global bootstrap commands fail fast (pipeline stops on error)
 - Global cleanup commands are best-effort (errors are logged but all commands run)

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"slices"
+	"strings"
 )
 
 type ConfigValidator struct {
@@ -24,6 +25,7 @@ func (v *ConfigValidator) Validate() error {
 		v.validateCleanup,
 		v.validateStages,
 		v.validateJobs,
+		v.validateNeeds,
 	}
 
 	for _, check := range checks {
@@ -157,6 +159,124 @@ func (v *ConfigValidator) validateJob(job *JobConfig) error {
 		}
 		if slices.Contains(job.Cache.Paths, "") {
 			return fmt.Errorf("[YAML] Cache can't include an empty path in block \"%s\"\n", job.Name)
+		}
+	}
+	if job.Timeout < 0 {
+		return fmt.Errorf("[YAML] \"%s\" block has a negative 'timeout'. "+
+			"Use a duration like \"90s\" or \"10m\".", job.Name)
+	}
+	if job.Retry < 0 || job.Retry > 10 {
+		return fmt.Errorf("[YAML] \"%s\" block has 'retry: %d'; retry must be between 0 and 10.",
+			job.Name, job.Retry)
+	}
+	if err := v.validateServices(job); err != nil {
+		return err
+	}
+	if job.Artifacts != nil {
+		if len(job.Artifacts.Paths) == 0 {
+			return fmt.Errorf("[YAML] \"%s\" block has an artifacts section with no 'paths'. "+
+				"Please list at least one path.", job.Name)
+		}
+		for _, p := range job.Artifacts.Paths {
+			if p == "" {
+				return fmt.Errorf("[YAML] \"%s\" block has an empty artifacts path.", job.Name)
+			}
+			if strings.HasPrefix(p, "/") || strings.Contains(p, "..") {
+				return fmt.Errorf("[YAML] \"%s\" artifacts path %q must be relative to the job's workdir "+
+					"and must not contain '..'.", job.Name, p)
+			}
+		}
+	}
+	return nil
+}
+
+func (v *ConfigValidator) validateServices(job *JobConfig) error {
+	if len(job.Services) == 0 {
+		return nil
+	}
+	if job.Network != nil && job.Network.HostMode {
+		return fmt.Errorf("[YAML] \"%s\" block combines 'services' with 'network.host_mode'. "+
+			"Services run on a per-job network, which host mode bypasses — remove one of the two.", job.Name)
+	}
+	aliases := make(map[string]bool, len(job.Services))
+	for i, svc := range job.Services {
+		if svc.Image == "" {
+			return fmt.Errorf("[YAML] \"%s\" block: service %d has no image.", job.Name, i+1)
+		}
+		alias := svc.EffectiveAlias()
+		if alias == "" || !matrixSafeRe.MatchString(alias) {
+			return fmt.Errorf("[YAML] \"%s\" block: service %q resolves to invalid alias %q "+
+				"(allowed: a-zA-Z0-9_.-); set an explicit 'alias'.", job.Name, svc.Image, alias)
+		}
+		if aliases[alias] {
+			return fmt.Errorf("[YAML] \"%s\" block: duplicate service alias %q; "+
+				"set distinct 'alias' values.", job.Name, alias)
+		}
+		aliases[alias] = true
+		if svc.Ready != nil && svc.Ready.Timeout < 0 {
+			return fmt.Errorf("[YAML] \"%s\" block: service %q has a negative ready timeout.", job.Name, alias)
+		}
+	}
+	return nil
+}
+
+// validateNeeds checks the needs graph as a whole: every reference must name
+// an existing job (not itself) in the same or an earlier stage, and the graph
+// must be acyclic.
+func (v *ConfigValidator) validateNeeds() error {
+	byName := make(map[string]*JobConfig, len(v.cfg.Jobs))
+	for i := range v.cfg.Jobs {
+		byName[v.cfg.Jobs[i].Name] = &v.cfg.Jobs[i]
+	}
+	stageIdx := make(map[string]int, len(v.cfg.Stages))
+	for i, s := range v.cfg.Stages {
+		stageIdx[s] = i
+	}
+
+	for _, job := range v.cfg.Jobs {
+		for _, need := range job.Needs {
+			dep, ok := byName[need]
+			if !ok {
+				return fmt.Errorf("[YAML] \"%s\" block needs unknown job %q.", job.Name, need)
+			}
+			if need == job.Name {
+				return fmt.Errorf("[YAML] \"%s\" block needs itself.", job.Name)
+			}
+			if stageIdx[dep.Stage] > stageIdx[job.Stage] {
+				return fmt.Errorf("[YAML] \"%s\" (stage %q) needs %q from later stage %q; "+
+					"needs may only reference the same or an earlier stage.", job.Name, job.Stage, need, dep.Stage)
+			}
+		}
+	}
+
+	// Cycle detection over the needs edges (DFS, three colors).
+	const (
+		white = iota
+		grey
+		black
+	)
+	color := make(map[string]int, len(v.cfg.Jobs))
+	var visit func(name string) error
+	visit = func(name string) error {
+		color[name] = grey
+		for _, need := range byName[name].Needs {
+			switch color[need] {
+			case grey:
+				return fmt.Errorf("[YAML] 'needs' cycle detected involving %q and %q.", name, need)
+			case white:
+				if err := visit(need); err != nil {
+					return err
+				}
+			}
+		}
+		color[name] = black
+		return nil
+	}
+	for name := range byName {
+		if color[name] == white {
+			if err := visit(name); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

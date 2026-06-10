@@ -145,5 +145,10 @@ func runPipeline(cfg *config.Config, runner *Runner, diag *log.Logger) error {
 
 	adapter := docker.NewConfigAdapter(cfg, diag)
 	executor := docker.NewDockerExecutor(dockerClient, adapter, diag)
+	defer func() {
+		if cerr := executor.Close(); cerr != nil {
+			diag.Printf("Error cleaning up artifact store: %v", cerr)
+		}
+	}()
 	return runner.Run(executor)
 }
