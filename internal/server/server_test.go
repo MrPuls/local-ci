@@ -247,3 +247,99 @@ func waitFinished(t *testing.T, mgr *runmanager.Manager, id string) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+func TestConfigDiscoveryAndSelection(t *testing.T) {
+	ts, _, _, root := newTestServer(t, nil)
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(".local-ci.yaml", "stages:\n  - build\nA:\n  stage: build\n  image: alpine\n  script: [\"echo a\"]\n")
+	write("deploy-local-ci.yaml", "stages:\n  - ship\nShip:\n  stage: ship\n  image: alpine\n  script: [\"echo s\"]\n")
+
+	// Discovery lists both, canonical first and active.
+	resp := do(t, "GET", ts.URL+"/api/configs", "")
+	var list configListJSON
+	json.NewDecoder(resp.Body).Decode(&list)
+	resp.Body.Close()
+	if len(list.Configs) != 2 {
+		t.Fatalf("configs = %+v, want 2", list.Configs)
+	}
+	if list.Configs[0].Name != ".local-ci.yaml" || !list.Configs[0].Active {
+		t.Errorf("first config = %+v, want active .local-ci.yaml", list.Configs[0])
+	}
+
+	// Selecting the other file repoints the active config and returns its graph.
+	resp = do(t, "POST", ts.URL+"/api/configs/select", `{"name":"deploy-local-ci.yaml"}`)
+	var g configGraph
+	json.NewDecoder(resp.Body).Decode(&g)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !g.Valid {
+		t.Fatalf("select: status=%d graph=%+v", resp.StatusCode, g)
+	}
+	if len(g.Stages) != 1 || g.Stages[0] != "ship" {
+		t.Errorf("selected graph stages = %v, want [ship]", g.Stages)
+	}
+
+	// A name outside the discovered set (or with separators) is rejected.
+	for _, body := range []string{`{"name":"../evil.yaml"}`, `{"name":"other.yaml"}`} {
+		resp = do(t, "POST", ts.URL+"/api/configs/select", body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			t.Errorf("select %s succeeded, want rejection", body)
+		}
+	}
+}
+
+func TestConfigRawRoundTrip(t *testing.T) {
+	ts, _, _, root := newTestServer(t, nil)
+	cfgPath := filepath.Join(root, ".local-ci.yaml")
+
+	// Missing file reads as 404 (the editor treats it as a new empty file).
+	resp := do(t, "GET", ts.URL+"/api/config/raw", "")
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("raw missing: status = %d, want 404", resp.StatusCode)
+	}
+
+	// Saving valid YAML creates the file and reports valid.
+	yaml := "stages:\n  - build\nA:\n  stage: build\n  image: alpine\n  script: [\"echo a\"]\n"
+	resp = do(t, "PUT", ts.URL+"/api/config/raw", yaml)
+	var save struct {
+		Saved  bool     `json:"saved"`
+		Valid  bool     `json:"valid"`
+		Errors []string `json:"errors"`
+	}
+	json.NewDecoder(resp.Body).Decode(&save)
+	resp.Body.Close()
+	if !save.Saved || !save.Valid {
+		t.Fatalf("save = %+v, want saved+valid", save)
+	}
+	onDisk, err := os.ReadFile(cfgPath)
+	if err != nil || string(onDisk) != yaml {
+		t.Fatalf("on disk = %q, err=%v, want the saved YAML", onDisk, err)
+	}
+
+	// Reading returns the same bytes.
+	resp = do(t, "GET", ts.URL+"/api/config/raw", "")
+	got, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(got) != yaml {
+		t.Errorf("raw read = %q, want %q", got, yaml)
+	}
+
+	// Invalid YAML still saves but reports the validation errors.
+	resp = do(t, "PUT", ts.URL+"/api/config/raw", "stages: [build]\nA:\n  stage: nope\n  image: alpine\n  script: [\"x\"]\n")
+	save = struct {
+		Saved  bool     `json:"saved"`
+		Valid  bool     `json:"valid"`
+		Errors []string `json:"errors"`
+	}{}
+	json.NewDecoder(resp.Body).Decode(&save)
+	resp.Body.Close()
+	if !save.Saved || save.Valid || len(save.Errors) == 0 {
+		t.Errorf("invalid save = %+v, want saved with errors", save)
+	}
+}

@@ -41,7 +41,7 @@ func newRunsCmd() *cobra.Command {
 
 func listRuns(st *store.Store) error {
 	project, _ := os.Getwd()
-	runs, err := st.ListRuns(project, runsAll, runsLimit)
+	runs, err := st.ListRuns(project, runsAll, runsLimit, 0)
 	if err != nil {
 		return err
 	}

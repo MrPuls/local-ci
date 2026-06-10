@@ -7,13 +7,17 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/MrPuls/local-ci/internal/docker"
 	"github.com/MrPuls/local-ci/internal/engine"
 	"github.com/MrPuls/local-ci/internal/runmanager"
 	"github.com/MrPuls/local-ci/internal/store"
@@ -25,18 +29,47 @@ type Server struct {
 	manager *runmanager.Manager
 	token   string
 	version string
-	// configPath is the single project config the server operates on. It is
-	// fixed at startup (a trusted operator setting) and never derived from a
-	// request, so no request data ever reaches a config file path.
+	// configDir is the project directory the server operates in, fixed at
+	// startup from the trusted --config flag. Config selection is restricted
+	// to files discovery finds inside this directory, so request data never
+	// contributes a path — it only picks one of the discovered names.
+	configDir string
+	// mu guards configPath: the selection endpoint may repoint it to another
+	// discovered config file inside configDir.
+	mu         sync.RWMutex
 	configPath string
+	// uiFS, when set (via SetUI), is the embedded SPA served for all non-/api
+	// routes. Nil in API-only mode (`serve`, the dev/sidecar backend).
+	uiFS fs.FS
 }
+
+// activeConfig returns the currently selected project config path.
+func (s *Server) activeConfig() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.configPath
+}
+
+func (s *Server) setActiveConfig(path string) {
+	s.mu.Lock()
+	s.configPath = path
+	s.mu.Unlock()
+}
+
+// SetUI enables serving the embedded single-page app (and its assets) for every
+// non-/api route. The API stays token-guarded; the UI is served unauthenticated
+// (it's loopback, same-origin with the API, and carries no secrets).
+func (s *Server) SetUI(f fs.FS) { s.uiFS = f }
 
 func New(st *store.Store, mgr *runmanager.Manager, token, version, configPath string) *Server {
 	abs, err := filepath.Abs(configPath)
 	if err != nil {
 		abs = configPath
 	}
-	return &Server{store: st, manager: mgr, token: token, version: version, configPath: abs}
+	return &Server{
+		store: st, manager: mgr, token: token, version: version,
+		configPath: abs, configDir: filepath.Dir(abs),
+	}
 }
 
 // safeComponent reports whether s is usable as a single path component (a run
@@ -48,19 +81,67 @@ func safeComponent(s string) bool {
 		!strings.ContainsAny(s, `/\`) && !strings.Contains(s, "..")
 }
 
-// Handler returns the fully-routed, auth-wrapped HTTP handler.
+// Handler returns the fully-routed HTTP handler: a token-guarded /api surface
+// and, when a UI is set, the embedded SPA served unauthenticated for all other
+// routes.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("POST /api/runs", s.handleTrigger)
-	mux.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancel)
-	mux.HandleFunc("GET /api/runs", s.handleListRuns)
-	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
-	mux.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
-	mux.HandleFunc("GET /api/runs/{id}/log", s.handleLog)
-	mux.HandleFunc("GET /api/config", s.handleConfig)
-	mux.HandleFunc("POST /api/config/validate", s.handleValidate)
-	return s.auth(mux)
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/health", s.handleHealth)
+	api.HandleFunc("GET /api/system", s.handleSystem)
+	api.HandleFunc("POST /api/runs", s.handleTrigger)
+	api.HandleFunc("POST /api/runs/cleanup", s.handleCleanup)
+	api.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancel)
+	api.HandleFunc("GET /api/runs", s.handleListRuns)
+	api.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
+	api.HandleFunc("DELETE /api/runs/{id}", s.handleDeleteRun)
+	api.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
+	api.HandleFunc("GET /api/runs/{id}/log", s.handleLog)
+	api.HandleFunc("GET /api/config", s.handleConfig)
+	api.HandleFunc("POST /api/config/validate", s.handleValidate)
+	api.HandleFunc("GET /api/config/raw", s.handleConfigRaw)
+	api.HandleFunc("PUT /api/config/raw", s.handleConfigRawSave)
+	api.HandleFunc("GET /api/configs", s.handleListConfigs)
+	api.HandleFunc("POST /api/configs/select", s.handleSelectConfig)
+
+	// API-only (serve / dev / Tauri sidecar): exactly the previous behaviour.
+	if s.uiFS == nil {
+		return s.auth(api)
+	}
+	// UI mode (`local-ci ui`): /api stays guarded, everything else is the SPA.
+	root := http.NewServeMux()
+	root.Handle("/api/", s.auth(api))
+	root.Handle("/", s.uiHandler())
+	return root
+}
+
+// uiHandler serves the embedded SPA: a static asset when the path matches a
+// built file, otherwise index.html so a refresh or deep link still boots the
+// app (the hash router then takes over).
+func (s *Server) uiHandler() http.Handler {
+	files := http.FileServerFS(s.uiFS)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if name != "" {
+			if f, err := s.uiFS.Open(name); err == nil {
+				f.Close()
+				files.ServeHTTP(w, r)
+				return
+			}
+		}
+		f, err := s.uiFS.Open("index.html")
+		if err != nil {
+			http.Error(w, "web UI not built", http.StatusNotImplemented)
+			return
+		}
+		defer f.Close()
+		rs, ok := f.(io.ReadSeeker)
+		if !ok {
+			http.Error(w, "web UI index not seekable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		http.ServeContent(w, r, "index.html", time.Time{}, rs)
+	})
 }
 
 // auth enforces the loopback bearer token. The token is also accepted as a
@@ -93,6 +174,30 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 }
 
+type systemJSON struct {
+	Engine docker.Status `json:"engine"`
+	DB     dbJSON        `json:"db"`
+}
+
+type dbJSON struct {
+	Path      string `json:"path"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
+
+// handleSystem reports the container-engine status (so the UI can show whether
+// Docker/OrbStack is up and ready) and the history database's location + size.
+func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
+	db := dbJSON{Path: s.store.DBPath()}
+	if fi, err := os.Stat(db.Path); err == nil {
+		db.SizeBytes = fi.Size()
+	}
+	// Under WAL mode the -wal sidecar can hold a meaningful chunk of the data.
+	if fi, err := os.Stat(db.Path + "-wal"); err == nil {
+		db.SizeBytes += fi.Size()
+	}
+	writeJSON(w, http.StatusOK, systemJSON{Engine: docker.Probe(r.Context()), DB: db})
+}
+
 type triggerRequest struct {
 	Jobs   []string `json:"jobs"`
 	Stages []string `json:"stages"`
@@ -107,10 +212,10 @@ func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	// The config is the server's fixed project config; clients select jobs /
+	// The config is the server's active project config; clients select jobs /
 	// stages / mode / env, never the config path.
 	id, err := s.manager.Trigger(engine.Spec{
-		ConfigFile: s.configPath,
+		ConfigFile: s.activeConfig(),
 		JobNames:   req.Jobs,
 		Stages:     req.Stages,
 		Env:        req.Env,
@@ -137,7 +242,13 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	project := q.Get("project")
 	all := q.Get("all") == "true" || project == ""
 	limit := atoiDefault(q.Get("limit"), 50)
-	runs, err := s.store.ListRuns(project, all, limit)
+	offset := atoiDefault(q.Get("offset"), 0)
+	runs, err := s.store.ListRuns(project, all, limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	total, err := s.store.CountRuns(project, all)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -146,7 +257,63 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	for _, run := range runs {
 		out = append(out, toRunJSON(run, nil))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": out})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": out, "total": total})
+}
+
+// handleDeleteRun removes a finished run (its row, job rows, and log files). An
+// active run must be cancelled first.
+func (s *Server) handleDeleteRun(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !safeComponent(id) {
+		writeError(w, http.StatusBadRequest, "invalid run id")
+		return
+	}
+	if _, err := s.store.GetRun(id); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "run not found")
+		return
+	}
+	if s.manager.Active(id) {
+		writeError(w, http.StatusConflict, "run is still active; cancel it first")
+		return
+	}
+	if err := s.store.DeleteRun(id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+type cleanupRequest struct {
+	Keep int  `json:"keep"`
+	All  bool `json:"all"`
+}
+
+// handleCleanup deletes all but the `keep` most recent runs (active runs are
+// always skipped). Scope follows `all`: every project, or just this one.
+func (s *Server) handleCleanup(w http.ResponseWriter, r *http.Request) {
+	var req cleanupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	project, _ := os.Getwd()
+	ids, err := s.store.OldRunIDs(project, req.All, req.Keep)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	deleted := 0
+	for _, id := range ids {
+		if s.manager.Active(id) {
+			continue
+		}
+		if err := s.store.DeleteRun(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		deleted++
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"deleted": deleted})
 }
 
 func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {

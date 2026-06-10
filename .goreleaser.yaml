@@ -2,6 +2,13 @@ version: 2
 
 project_name: local-ci
 
+# Build the embedded web UI (web/ → internal/web/dist) before compiling, so the
+# released binaries always carry a freshly-built SPA regardless of what's
+# committed. Requires Bun on the runner (see .github/workflows/release.yml).
+before:
+  hooks:
+    - bash -c "cd web && bun install --frozen-lockfile && bun run build"
+
 builds:
   - main: ./cmd/local-ci/
     env:

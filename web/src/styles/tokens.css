@@ -1,0 +1,167 @@
+/* local-ci design system — colors + type tokens.
+ * Source of truth: local-ci-design/colors_and_type.css
+ *
+ * Switch theme by setting [data-theme="amber" | "cyan" | "mono"] on <html>.
+ * Always pair a color with its matching --*-glow when used in text-shadow.
+ * (VT323 webfont is loaded from index.html.)
+ */
+
+/* ─── Type tokens ─────────────────────────────────────────────────────── */
+:root {
+  --font-display: 'VT323', 'Courier New', ui-monospace, monospace;
+  --font-body: 'VT323', 'Courier New', ui-monospace, monospace;
+  --font-mono: 'VT323', 'Courier New', ui-monospace, monospace;
+
+  /* Sizes — chunky pixel feel. Base is oversized vs typical web. */
+  --fs-body: 1.2rem;
+  --fs-small: 1rem;
+  --fs-tab: 1.05rem;
+  --fs-h3: 1.4rem;
+  --fs-h2: 1.7rem;
+  --fs-h1: 2.4rem;
+  --fs-mark: 1.8rem;
+
+  /* Spacing — letter-spacing is the type knob. */
+  --tracking-body: 0.5px;
+  --tracking-heading: 2px;
+  --tracking-mark: 3px;
+
+  --leading-tight: 1;
+  --leading-body: 1.25;
+  --leading-log: 1.3;
+}
+
+/* ─── Phosphor: AMBER (default) ───────────────────────────────────────── */
+:root,
+:root[data-theme='amber'] {
+  --term-page: #0d0d0d;
+  --term-bg: #1a1a1a;
+  --term-faint: #2a2a2a;
+
+  --term-fg: #33ff00;
+  --term-accent: #ffb000;
+  --term-alt: #00ffff;
+  --term-error: #ff3333;
+  --term-dim: #555;
+
+  --term-glow: rgba(51, 255, 0, 0.55);
+  --term-glow-accent: rgba(255, 176, 0, 0.7);
+  --term-glow-alt: rgba(0, 255, 255, 0.55);
+  --term-glow-error: rgba(255, 51, 51, 0.7);
+}
+
+/* ─── Phosphor: CYAN ──────────────────────────────────────────────────── */
+:root[data-theme='cyan'] {
+  --term-page: #060d10;
+  --term-bg: #0a1418;
+  --term-faint: #0f2026;
+
+  --term-fg: #00e5ff;
+  --term-accent: #ffb000;
+  --term-alt: #66ff99;
+  --term-error: #ff5577;
+  --term-dim: #2d4a55;
+
+  --term-glow: rgba(0, 229, 255, 0.6);
+  --term-glow-accent: rgba(255, 176, 0, 0.7);
+  --term-glow-alt: rgba(102, 255, 153, 0.55);
+  --term-glow-error: rgba(255, 85, 119, 0.7);
+}
+
+/* ─── Phosphor: MONOCHROME ────────────────────────────────────────────── */
+:root[data-theme='mono'] {
+  --term-page: #060606;
+  --term-bg: #131313;
+  --term-faint: #1a1a1a;
+
+  --term-fg: #d4d4d4;
+  --term-accent: #ffffff;
+  --term-alt: #aaaaaa;
+  --term-error: #888888;
+  --term-dim: #3a3a3a;
+
+  --term-glow: rgba(212, 212, 212, 0.4);
+  --term-glow-accent: rgba(255, 255, 255, 0.55);
+  --term-glow-alt: rgba(170, 170, 170, 0.5);
+  --term-glow-error: rgba(160, 160, 160, 0.55);
+}
+:root[data-theme='mono'] body {
+  filter: grayscale(100%) contrast(120%);
+}
+
+/* ─── Base ────────────────────────────────────────────────────────────── */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--term-page);
+}
+body {
+  color: var(--term-fg);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-body);
+  text-transform: uppercase;
+  text-shadow: 0 0 5px var(--term-glow);
+}
+
+/* ─── Semantic type ───────────────────────────────────────────────────── */
+h1,
+h2,
+h3,
+.heading {
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-heading);
+  font-weight: normal;
+  color: var(--term-fg);
+  margin: 0;
+  padding: 0 0 0.4rem 0;
+  border-bottom: 2px solid var(--term-dim);
+  text-shadow: 0 0 8px var(--term-glow);
+  line-height: var(--leading-tight);
+}
+h1 {
+  font-size: var(--fs-h1);
+}
+h2 {
+  font-size: var(--fs-h2);
+}
+h3 {
+  font-size: var(--fs-h3);
+  border-bottom: none;
+  padding-bottom: 0.1rem;
+}
+
+.heading-prompt::before {
+  content: '> ';
+  color: var(--term-accent);
+  text-shadow: 0 0 8px var(--term-glow-accent);
+}
+
+/* ─── Inline color helpers ────────────────────────────────────────────── */
+.accent {
+  color: var(--term-accent);
+  text-shadow: 0 0 8px var(--term-glow-accent);
+}
+.alt {
+  color: var(--term-alt);
+  text-shadow: 0 0 8px var(--term-glow-alt);
+}
+.error {
+  color: var(--term-error);
+  text-shadow: 0 0 8px var(--term-glow-error);
+}
+.dim {
+  color: var(--term-dim);
+  text-shadow: none;
+}
+.faint {
+  color: var(--term-dim);
+  opacity: 0.7;
+  text-shadow: none;
+}
+.glow-strong {
+  text-shadow: 0 0 6px currentColor, 0 0 14px currentColor;
+}

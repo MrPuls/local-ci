@@ -1,0 +1,104 @@
+/* App-level additions beyond the design's crt.css — production surfaces the
+ * mockup didn't include (nav, settings panel, history table). Same CRT idiom:
+ * 2px borders, zero radii, paired glow, no easing on hover. */
+
+/* ------- Top nav links --------------------------------------------- */
+.nav {
+  display: flex;
+  gap: 0.4rem;
+}
+.nav-link {
+  background: transparent;
+  border: 2px solid var(--term-dim);
+  color: var(--term-dim);
+  font-family: inherit;
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.15rem 0.7rem;
+  cursor: pointer;
+}
+.nav-link:hover {
+  color: var(--term-fg);
+  border-color: var(--term-fg);
+}
+.nav-link.active {
+  color: var(--term-fg);
+  border-color: var(--term-fg);
+  text-shadow: 0 0 8px var(--term-glow);
+  box-shadow: 0 0 10px var(--term-glow);
+}
+
+/* A bare in-text link, e.g. a run id in the history table */
+.link {
+  color: var(--term-alt);
+  text-shadow: 0 0 8px var(--term-glow-alt);
+  text-decoration: none;
+  cursor: pointer;
+}
+.link:hover {
+  text-decoration: underline;
+}
+
+/* ------- History table --------------------------------------------- */
+table.term tbody tr.clickable {
+  cursor: pointer;
+}
+table.term tbody tr.clickable:hover td {
+  background: rgba(255, 176, 0, 0.06);
+}
+table.term tbody tr.active td {
+  background: rgba(255, 176, 0, 0.1);
+}
+
+/* run-scope / control row above the graph */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.controls label {
+  color: var(--term-dim);
+  letter-spacing: 2px;
+}
+
+/* generic empty/centered state */
+.empty {
+  padding: 2rem 0;
+  text-align: center;
+}
+
+/* ------- YAML editor highlight tokens -------------------------------
+ * Global (not scoped) because the editor injects them via v-html.
+ * Same phosphor palette as everything else: key=accent, scalar=fg,
+ * literal=alt, comment=dim. */
+.y-key {
+  color: var(--term-accent);
+  text-shadow: 0 0 6px var(--term-glow-accent);
+}
+.y-dash {
+  color: var(--term-accent);
+}
+.y-str {
+  color: var(--term-fg);
+}
+.y-num,
+.y-bool,
+.y-var {
+  color: var(--term-alt);
+  text-shadow: 0 0 6px var(--term-glow-alt);
+}
+.y-comment {
+  color: var(--term-dim);
+  text-shadow: none;
+}
+
+/* connection / error banner */
+.banner {
+  border: 2px solid var(--term-error);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.5rem 0.8rem;
+  box-shadow: 0 0 14px var(--term-glow-error);
+}
