@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { RouterView } from 'vue-router';
+import ConfigSelectModal from '@/components/ConfigSelectModal.vue';
 import CrtEffects from '@/components/CrtEffects.vue';
 import TopBar from '@/components/TopBar.vue';
 import StatusBar from '@/components/StatusBar.vue';
@@ -8,14 +9,17 @@ import ToastHost from '@/components/ToastHost.vue';
 import { useCrtFx } from '@/composables/useCrtFx';
 import { useHealth } from '@/composables/useHealth';
 import { useConfig } from '@/composables/useConfig';
+import { useConfigs } from '@/composables/useConfigs';
 
 const { glitching, vsync } = useCrtFx();
 const { refresh: refreshHealth } = useHealth();
 const { refresh: refreshConfig } = useConfig();
+const { promptOnBoot } = useConfigs();
 
 onMounted(() => {
   refreshHealth();
   refreshConfig();
+  promptOnBoot(); // "N config files found — select source", once per page load
 });
 </script>
 
@@ -32,5 +36,6 @@ onMounted(() => {
       <StatusBar />
     </div>
   </div>
+  <ConfigSelectModal />
   <ToastHost />
 </template>

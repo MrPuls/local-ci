@@ -7,10 +7,19 @@ import { useConfig } from '@/composables/useConfig';
 import { useRunStatus } from '@/composables/useRunStatus';
 import { useSettings, type Theme } from '@/composables/useSettings';
 import { useSystem } from '@/composables/useSystem';
+import { useConfigs } from '@/composables/useConfigs';
 import { baseName } from '@/lib/format';
 
 const { version, online } = useHealth();
 const { config } = useConfig();
+const { selectorOpen, refresh: refreshConfigs } = useConfigs();
+
+// The FILE chip reopens the boot-time config selector with a fresh scan.
+function openSelector(): void {
+  refreshConfigs().then(() => {
+    selectorOpen.value = true;
+  });
+}
 const { summary } = useRunStatus();
 const { settings, cycleTheme } = useSettings();
 const { engine } = useSystem();
@@ -58,11 +67,19 @@ const themeColor = computed(() => THEME_COLOR[settings.theme]);
       <div class="dim">|</div>
       <div style="display: flex; align-items: baseline; gap: 0.6rem">
         <span class="dim">FILE:</span>
-        <span data-test-id="config-file">{{ filename }}</span>
+        <button
+          class="file-chip"
+          data-test-id="config-file"
+          title="Switch config file"
+          @click="openSelector"
+        >
+          {{ filename }}
+        </button>
       </div>
 
       <nav class="nav" style="margin-left: 0.5rem">
         <RouterLink to="/" class="nav-link" exact-active-class="active">PIPELINE</RouterLink>
+        <RouterLink to="/config" class="nav-link" active-class="active">CONFIG</RouterLink>
         <RouterLink to="/history" class="nav-link" active-class="active">HISTORY</RouterLink>
       </nav>
 
@@ -89,3 +106,26 @@ const themeColor = computed(() => THEME_COLOR[settings.theme]);
     </div>
   </header>
 </template>
+
+<style scoped>
+/* FILE chip — text-styled button so the filename reads as a value but invites
+   a click (reopens the config selector). */
+.file-chip {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--term-dim);
+  color: var(--term-fg);
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+  text-shadow: 0 0 5px var(--term-glow);
+  padding: 0;
+  cursor: pointer;
+}
+.file-chip:hover {
+  color: var(--term-accent);
+  border-bottom-color: var(--term-accent);
+  text-shadow: 0 0 8px var(--term-glow-accent);
+}
+</style>

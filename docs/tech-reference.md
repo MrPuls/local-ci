@@ -136,6 +136,12 @@ Two commands serve it:
 - Because the browser is same-origin with the API and the server binds `127.0.0.1`, the `ui` server runs **without** a bearer token. The `/api` surface stays token-guarded in `serve` mode, where the browser reaches it through the Vite dev proxy (which injects the token, including on the SSE stream).
 - The live event stream is Server-Sent Events: `GET /api/runs/{id}/events` replays a run's event log from the start and then continues live, so the same endpoint drives both active and finished runs.
 
+### Config selection and editing
+
+- `GET /api/configs` discovers config files in the project directory (the canonical `.local-ci.yaml`/`.local-ci.yml` plus `*.local-ci.yaml`, `*-local-ci.yaml`, `*_local-ci.yaml` and the `.yml` spellings) and marks the active one. On boot the UI shows this list as a "select source" prompt; the `FILE:` chip in the top bar reopens it.
+- `POST /api/configs/select` switches the active config. The request carries only a *name* that must match a discovered entry — never a path — so selection can't escape the project directory.
+- `GET /api/config/raw` / `PUT /api/config/raw` back the UI's CONFIG tab (a themed YAML editor). Saves are atomic (temp file + rename, mode preserved) and capped at 1 MiB; invalid YAML still saves — the response carries the validation errors so the editor can surface them while the user is mid-edit.
+
 ### Building the UI
 
 The built `internal/web/dist` is committed, so `go build` / `go install` include the UI with no extra tooling. When you change anything under `web/`, rebuild and commit it:

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MrPuls/local-ci/internal/docker"
@@ -28,13 +29,31 @@ type Server struct {
 	manager *runmanager.Manager
 	token   string
 	version string
-	// configPath is the single project config the server operates on. It is
-	// fixed at startup (a trusted operator setting) and never derived from a
-	// request, so no request data ever reaches a config file path.
+	// configDir is the project directory the server operates in, fixed at
+	// startup from the trusted --config flag. Config selection is restricted
+	// to files discovery finds inside this directory, so request data never
+	// contributes a path — it only picks one of the discovered names.
+	configDir string
+	// mu guards configPath: the selection endpoint may repoint it to another
+	// discovered config file inside configDir.
+	mu         sync.RWMutex
 	configPath string
 	// uiFS, when set (via SetUI), is the embedded SPA served for all non-/api
 	// routes. Nil in API-only mode (`serve`, the dev/sidecar backend).
 	uiFS fs.FS
+}
+
+// activeConfig returns the currently selected project config path.
+func (s *Server) activeConfig() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.configPath
+}
+
+func (s *Server) setActiveConfig(path string) {
+	s.mu.Lock()
+	s.configPath = path
+	s.mu.Unlock()
 }
 
 // SetUI enables serving the embedded single-page app (and its assets) for every
@@ -47,7 +66,10 @@ func New(st *store.Store, mgr *runmanager.Manager, token, version, configPath st
 	if err != nil {
 		abs = configPath
 	}
-	return &Server{store: st, manager: mgr, token: token, version: version, configPath: abs}
+	return &Server{
+		store: st, manager: mgr, token: token, version: version,
+		configPath: abs, configDir: filepath.Dir(abs),
+	}
 }
 
 // safeComponent reports whether s is usable as a single path component (a run
@@ -76,6 +98,10 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/runs/{id}/log", s.handleLog)
 	api.HandleFunc("GET /api/config", s.handleConfig)
 	api.HandleFunc("POST /api/config/validate", s.handleValidate)
+	api.HandleFunc("GET /api/config/raw", s.handleConfigRaw)
+	api.HandleFunc("PUT /api/config/raw", s.handleConfigRawSave)
+	api.HandleFunc("GET /api/configs", s.handleListConfigs)
+	api.HandleFunc("POST /api/configs/select", s.handleSelectConfig)
 
 	// API-only (serve / dev / Tauri sidecar): exactly the previous behaviour.
 	if s.uiFS == nil {
@@ -186,10 +212,10 @@ func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	// The config is the server's fixed project config; clients select jobs /
+	// The config is the server's active project config; clients select jobs /
 	// stages / mode / env, never the config path.
 	id, err := s.manager.Trigger(engine.Spec{
-		ConfigFile: s.configPath,
+		ConfigFile: s.activeConfig(),
 		JobNames:   req.Jobs,
 		Stages:     req.Stages,
 		Env:        req.Env,

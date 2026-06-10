@@ -24,7 +24,7 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Bootstrap scripts
 - Cleanup scripts (companion to bootstrap)
 - Per-job bootstrap and cleanup scripts
-- Web UI: live pipeline graph, streaming job logs, and run control in the browser — served from a single binary with `local-ci ui`
+- Web UI: live pipeline graph, streaming job logs, run control, and a built-in YAML config editor in the browser — served from a single binary with `local-ci ui`
 - Run history: every run is recorded to a local store; inspect it with `local-ci runs` and `local-ci log`
 - Claude Code agent plugin
 
@@ -107,6 +107,13 @@ local-ci run --remote <repository_url>
 local-ci run --env NEW_VAR=var_value,SECOND_VAR=new_value
 ```
 
+When you don't pass `-c/--config`, `run` scans the working directory for config
+files — the canonical `.local-ci.yaml`/`.local-ci.yml` plus any
+`<name>.local-ci.yaml` / `<name>-local-ci.yaml` / `<name>_local-ci.yaml`
+variant — and asks which one to load (Enter picks the first). Non-interactive
+sessions never block: a single discovered file is used as-is, anything else
+falls back to `.local-ci.yaml`.
+
 ### Web UI
 
 `local-ci ui` serves the whole web app — its UI **and** API — from this single
@@ -126,6 +133,12 @@ local-ci ui --config my-pipeline.yaml
 It binds loopback only (`127.0.0.1`) and shows the configured pipeline as a live
 graph: trigger and cancel runs, watch job status update in real time, stream
 logs, and browse run history — all backed by the same engine as `local-ci run`.
+
+On load the UI scans the project directory for config files (same patterns as
+`run`) and asks which one to drive the session; switch any time via the `FILE:`
+chip in the top bar. The **CONFIG** tab is a built-in YAML editor with syntax
+highlighting, validation feedback, and a live preview of the pipeline graph —
+`Ctrl+S` writes the file back to disk.
 
 > For **frontend development** against a hot-reloading dev server, use
 > `local-ci serve` (the API-only backend) together with the Vite dev server —

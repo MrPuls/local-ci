@@ -82,6 +82,29 @@ export interface ConfigGraph {
   includes?: string[];
 }
 
+// GET /api/configs — config files discovered in the project directory.
+// Mirrors internal/server/config.go (configListJSON, configFileJSON).
+export interface ConfigFile {
+  name: string;
+  path: string;
+  active: boolean;
+  exists: boolean;
+}
+
+export interface ConfigList {
+  dir: string;
+  configs: ConfigFile[];
+}
+
+// PUT /api/config/raw — save result. Invalid YAML still saves; the errors
+// travel back so the editor can surface them.
+export interface SaveConfigResult {
+  saved: boolean;
+  path: string;
+  valid: boolean;
+  errors?: string[];
+}
+
 export interface WireEvent {
   seq: number;
   type: string;

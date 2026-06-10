@@ -1,9 +1,11 @@
 import type {
   ConfigGraph,
+  ConfigList,
   Health,
   Run,
   RunListResponse,
   RunMode,
+  SaveConfigResult,
   SystemInfo,
 } from './types';
 
@@ -53,6 +55,42 @@ export function getConfig(): Promise<ConfigGraph> {
 
 export function getSystem(): Promise<SystemInfo> {
   return getJSON<SystemInfo>('/api/system');
+}
+
+/** Config files discovered in the project directory (active one marked). */
+export function listConfigs(): Promise<ConfigList> {
+  return getJSON<ConfigList>('/api/configs');
+}
+
+/** Switch the active config to a discovered file; returns its parsed graph. */
+export async function selectConfig(name: string): Promise<ConfigGraph> {
+  const res = await request('/api/configs/select', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return (await res.json()) as ConfigGraph;
+}
+
+/** Raw YAML of the active config. A file that doesn't exist yet reads as ''. */
+export async function getRawConfig(): Promise<string> {
+  try {
+    const res = await request('/api/config/raw');
+    return await res.text();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return '';
+    throw e;
+  }
+}
+
+/** Overwrite the active config file; reports the saved file's validity. */
+export async function saveRawConfig(text: string): Promise<SaveConfigResult> {
+  const res = await request('/api/config/raw', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    body: text,
+  });
+  return (await res.json()) as SaveConfigResult;
 }
 
 export interface RunPage {

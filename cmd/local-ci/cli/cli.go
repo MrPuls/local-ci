@@ -1,13 +1,18 @@
 package cli
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/MrPuls/local-ci/internal/engine"
 	"github.com/MrPuls/local-ci/internal/sink/recorder"
 	"github.com/MrPuls/local-ci/internal/sink/terminal"
@@ -55,6 +60,7 @@ func newRunCmd() *cobra.Command {
 		Short: "Run pipeline",
 		Long:  "Run CI pipeline based on configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfgFile := resolveConfigFile(cmd)
 			mode := engine.ModeSequential
 			switch {
 			case parallelStages:
@@ -87,7 +93,7 @@ func newRunCmd() *cobra.Command {
 
 			bus := engine.NewBus(sinks...)
 			return engine.Run(ctx, engine.NewRunID(), engine.Spec{
-				ConfigFile: configFile,
+				ConfigFile: cfgFile,
 				JobNames:   jobs,
 				Stages:     stages,
 				Remote:     remote,
@@ -109,6 +115,61 @@ func newRunCmd() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("parallel", "parallel-stages")
 
 	return cmd
+}
+
+// resolveConfigFile decides which config `run` uses when the user didn't pass
+// -c: discover the candidates in the working directory and, on a TTY, ask
+// which one to load — even a single candidate is confirmed, so the user always
+// sees which file is about to run. Non-interactive sessions never block: a
+// single candidate is used as-is, anything else keeps the flag default. An
+// explicit -c or --remote skips discovery entirely.
+func resolveConfigFile(cmd *cobra.Command) string {
+	if cmd.Flags().Changed("config") || remote != "" {
+		return configFile
+	}
+	candidates, err := config.DiscoverConfigs(".")
+	if err != nil || len(candidates) == 0 {
+		return configFile
+	}
+	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
+		if len(candidates) == 1 {
+			return candidates[0]
+		}
+		return configFile
+	}
+	return promptConfigChoice(candidates)
+}
+
+func isTerminal(f *os.File) bool {
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+func promptConfigChoice(candidates []string) string {
+	plural := "s"
+	if len(candidates) == 1 {
+		plural = ""
+	}
+	fmt.Printf("%d config file%s found:\n", len(candidates), plural)
+	for i, n := range candidates {
+		fmt.Printf("  [%d] %s\n", i+1, n)
+	}
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Printf("Which one do you want to load? [1-%d, Enter = 1]: ", len(candidates))
+		line, err := reader.ReadString('\n')
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return candidates[0]
+		}
+		if n, convErr := strconv.Atoi(line); convErr == nil && n >= 1 && n <= len(candidates) {
+			return candidates[n-1]
+		}
+		if err != nil { // EOF/read error with unusable input: take the default
+			return candidates[0]
+		}
+		fmt.Println("Invalid selection.")
+	}
 }
 
 func init() {

@@ -70,6 +70,31 @@ table.term tbody tr.active td {
   text-align: center;
 }
 
+/* ------- YAML editor highlight tokens -------------------------------
+ * Global (not scoped) because the editor injects them via v-html.
+ * Same phosphor palette as everything else: key=accent, scalar=fg,
+ * literal=alt, comment=dim. */
+.y-key {
+  color: var(--term-accent);
+  text-shadow: 0 0 6px var(--term-glow-accent);
+}
+.y-dash {
+  color: var(--term-accent);
+}
+.y-str {
+  color: var(--term-fg);
+}
+.y-num,
+.y-bool,
+.y-var {
+  color: var(--term-alt);
+  text-shadow: 0 0 6px var(--term-glow-alt);
+}
+.y-comment {
+  color: var(--term-dim);
+  text-shadow: none;
+}
+
 /* connection / error banner */
 .banner {
   border: 2px solid var(--term-error);
