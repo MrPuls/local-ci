@@ -28,8 +28,11 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Bootstrap scripts
 - Cleanup scripts (companion to bootstrap)
 - Per-job bootstrap and cleanup scripts
-- Web UI: live pipeline graph, streaming job logs, run control, and a built-in YAML config editor in the browser — served from a single binary with `local-ci ui`
+- Web UI: live pipeline graph, streaming job logs, run control (including re-running just the failed jobs), and a built-in YAML config editor in the browser — served from a single binary with `local-ci ui`
 - Run history: every run is recorded to a local store; inspect it with `local-ci runs` and `local-ci log`
+- Debug shell: `local-ci shell <job>` drops you into the job's exact container environment — image, variables, workspace, cache mounts, and running services
+- Watch mode: `local-ci run --watch` re-runs the pipeline on every file change
+- Config linting (`local-ci validate`) and a `.gitlab-ci.yml` importer (`local-ci import gitlab`)
 - Claude Code agent plugin
 
 ## Installation
@@ -118,6 +121,24 @@ variant — and asks which one to load (Enter picks the first). Non-interactive
 sessions never block: a single discovered file is used as-is, anything else
 falls back to `.local-ci.yaml`.
 
+### Developer loop
+
+```bash
+# Re-run the pipeline on every file change (Ctrl-C to stop)
+local-ci run --watch
+
+# Drop into a job's exact container environment to debug it from the inside:
+# same image, variables, workdir, cache mounts, copied workspace — and its
+# services running on the job network
+local-ci shell Test
+
+# Lint the config without running anything (exit 1 when invalid — git-hook friendly)
+local-ci validate
+
+# Convert an existing GitLab CI config (prints notes for anything that can't carry over)
+local-ci import gitlab
+```
+
 ### Web UI
 
 `local-ci ui` serves the whole web app — its UI **and** API — from this single
@@ -172,7 +193,10 @@ local-ci log <run-id> --job pipeline   # run-level diagnostics
 
 | Command | Description | Flags |
 |---|---|---|
-| `run` | Run the pipeline | `-c/--config`, `-j/--job`, `-s/--stage`, `-r/--remote`, `-e/--env`, `-p/--parallel`, `--parallel-stages`, `--no-record` |
+| `run` | Run the pipeline | `-c/--config`, `-j/--job`, `-s/--stage`, `-r/--remote`, `-e/--env`, `-p/--parallel`, `--parallel-stages`, `-w/--watch`, `--no-record` |
+| `shell <job>` | Open an interactive shell in the job's container environment (services included) | `-c/--config`, `-v/--verbose` |
+| `validate [file]` | Lint a config without running it (exit 1 when invalid) | `-c/--config` |
+| `import gitlab [file]` | Convert a `.gitlab-ci.yml` into a local-ci config | `-o/--output` (default `.local-ci.yaml`, `-` for stdout), `--force` |
 | `runs [run-id]` | List recorded runs, or show one run's details | `-a/--all`, `-n/--limit` (default 20) |
 | `log <run-id>` | Print a recorded run's logs | `-j/--job` (use `pipeline` for diagnostics) |
 | `ui` | Serve the embedded web UI **and** API from one binary, then open a browser | `--host` (default `127.0.0.1`), `--port` (default `4123`), `-c/--config`, `--no-open` |

@@ -24,6 +24,10 @@ type Executor struct {
 	adapter   ConfigAdapter
 	logger    *log.Logger
 	artifacts *artifactStore
+	// scope is the created_by label value on everything this executor creates.
+	// Pipeline runs use "local-ci" (swept by run-level cleanup); shell sessions
+	// use their own scope so a concurrent run's sweep can't tear them down.
+	scope string
 }
 
 func NewDockerExecutor(client *client.Client, adapter ConfigAdapter, logger *log.Logger) *Executor {
@@ -32,6 +36,7 @@ func NewDockerExecutor(client *client.Client, adapter ConfigAdapter, logger *log
 		adapter:   adapter,
 		logger:    logger,
 		artifacts: &artifactStore{},
+		scope:     "local-ci",
 	}
 }
 

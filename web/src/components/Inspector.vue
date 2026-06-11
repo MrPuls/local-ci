@@ -13,8 +13,13 @@ const props = defineProps<{
   node: PipelineNode | null;
   nodes: PipelineNode[];
   logAttached: boolean;
+  canRerun: boolean;
 }>();
-const emit = defineEmits<{ (e: 'close'): void; (e: 'check-logs', name: string): void }>();
+const emit = defineEmits<{
+  (e: 'close'): void;
+  (e: 'check-logs', name: string): void;
+  (e: 'rerun', configName: string): void;
+}>();
 
 type Tab = 'config' | 'timing';
 const tab = ref<Tab>('config');
@@ -74,8 +79,19 @@ const elapsedText = computed(() => {
             ><Icon name="clock" /> {{ fmtSeconds(node.durationMs) }}S</span
           >
           <button
-            class="btn btn-accent btn-sq"
+            v-if="node.status === 'failed'"
+            class="btn btn-error btn-sq"
             style="margin-left: auto"
+            data-test-id="rerun-job"
+            :disabled="!canRerun"
+            title="RERUN_THIS_JOB_ONLY"
+            @click="emit('rerun', node.configName)"
+          >
+            <Icon name="retry" /> RERUN
+          </button>
+          <button
+            class="btn btn-accent btn-sq"
+            :style="node.status === 'failed' ? {} : { marginLeft: 'auto' }"
             data-test-id="check-logs"
             :disabled="!node.ran"
             title="ATTACH_LOG_STREAM_TO_FEED"

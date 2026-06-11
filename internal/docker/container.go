@@ -75,11 +75,12 @@ func (c *ContainerManager) InspectContainer(ctx context.Context, containerID str
 }
 
 // CreateNetwork creates the per-job bridge network services and the job attach
-// to. It carries the created_by label so run-level cleanup can sweep leftovers.
-func (c *ContainerManager) CreateNetwork(ctx context.Context, name string) (string, error) {
+// to. The created_by label (scope) lets run-level cleanup sweep its own
+// leftovers without touching other sessions'.
+func (c *ContainerManager) CreateNetwork(ctx context.Context, name, scope string) (string, error) {
 	c.logger.Printf("[Docker] Creating network %q...", name)
 	resp, err := c.client.NetworkCreate(ctx, name, network.CreateOptions{
-		Labels: map[string]string{"created_by": "local-ci"},
+		Labels: map[string]string{"created_by": scope},
 	})
 	if err != nil {
 		return "", err

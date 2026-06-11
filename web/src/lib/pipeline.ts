@@ -27,6 +27,9 @@ export interface RunContext {
 
 export interface PipelineNode {
   name: string;
+  /** The config job name to use when re-triggering: matrix variants point at
+   *  their base job (the API selects jobs by config name, pre-expansion). */
+  configName: string;
   stage: string;
   image?: string;
   parallel: boolean;
@@ -85,6 +88,7 @@ export function mergePipeline(
 
   const fromRun = (r: RunJobLike, c?: (typeof configJobs)[number]): PipelineNode => ({
     name: r.name,
+    configName: c?.name ?? r.name,
     stage: r.stage || c?.stage || '',
     image: c?.image,
     parallel: c?.parallel ?? r.execKind === 'detached',
@@ -106,6 +110,7 @@ export function mergePipeline(
 
   const fromConfig = (c: (typeof configJobs)[number], status: UiStatus): PipelineNode => ({
     name: c.name,
+    configName: c.name,
     stage: c.stage,
     image: c.image,
     parallel: c.parallel,

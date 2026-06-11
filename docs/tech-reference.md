@@ -51,9 +51,48 @@ local-ci run [flags]
 | `--env` | `-e` | — | Extra environment variables, `KEY=VALUE` (comma-separated) |
 | `--parallel` | `-p` | `false` | Run all selected jobs at once, ignoring stages |
 | `--parallel-stages` | | `false` | Run stages in order, jobs within a stage in parallel |
+| `--watch` | `-w` | `false` | Re-run the pipeline whenever project files change (Ctrl-C to stop) |
 | `--no-record` | | `false` | Don't record this run to the local history store |
 
 `--parallel` and `--parallel-stages` are mutually exclusive. See [Parallel Execution](#parallel-execution).
+
+Watch mode honors the same `.gitignore`-derived ignore rules as the workspace copy, debounces editor save bursts, and queues exactly one re-run for changes that land while a pipeline is still running.
+
+### `shell` — debug a job from the inside
+
+```bash
+local-ci shell <job>
+```
+
+Starts the job's container — same image, variables, workdir, cache mounts, and copied workspace, with its `services:` running on the job network — and attaches an interactive `/bin/sh`. Exit the shell and everything (container, services, network) is torn down. Shell sessions are labeled separately from pipeline runs, so a concurrent `local-ci run`'s cleanup can't kill an open shell.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--config` | `-c` | `.local-ci.yaml` | Path to the configuration file |
+| `--verbose` | `-v` | `false` | Show Docker-layer diagnostics |
+
+### `validate` — lint a config
+
+```bash
+local-ci validate            # validates .local-ci.yaml
+local-ci validate ci.yaml    # validate a specific file
+```
+
+Loads and fully validates a config (stages, jobs, includes, templates, matrix expansion, needs graph) without running anything. Exits non-zero when invalid, so it slots into git hooks.
+
+### `import gitlab` — convert a GitLab CI config
+
+```bash
+local-ci import gitlab                 # .gitlab-ci.yml → .local-ci.yaml
+local-ci import gitlab ci.yml -o -     # print to stdout instead
+```
+
+Translates stages, scripts (with `before_script` folded in), images (including the `default:` block), variables, services, artifacts, needs, retry, timeout, cache, extends, and `parallel:matrix`. Keys with no local equivalent (`rules`, `only/except`, `environment`, ...) are dropped and listed as conversion notes, and the result is validated immediately so you know whether it runs as-is.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--output` | `-o` | `.local-ci.yaml` | Output path (`-` for stdout) |
+| `--force` | | `false` | Overwrite the output file if it exists |
 
 ### `runs` — list / inspect recorded runs
 

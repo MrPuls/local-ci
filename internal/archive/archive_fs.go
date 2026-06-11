@@ -30,6 +30,25 @@ func getIgnorePatterns(src string) ([]string, error) {
 	return ignorePatterns, nil
 }
 
+// IgnoreMatcher returns a predicate reporting whether a file or directory
+// name is excluded from the workspace — the same .gitignore-derived name
+// patterns CreateFSTar skips. Used by watch mode so file events and the
+// shipped workspace agree on what counts as project content.
+func IgnoreMatcher(src string) func(name string) bool {
+	patterns, _ := getIgnorePatterns(src)
+	return func(name string) bool {
+		if name == ".git" {
+			return true
+		}
+		for _, pattern := range patterns {
+			if matched, _ := filepath.Match(pattern, name); matched {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func CreateFSTar(src string, dest *bytes.Buffer) error {
 	ignorePatterns, err := getIgnorePatterns(src)
 	if err != nil {
