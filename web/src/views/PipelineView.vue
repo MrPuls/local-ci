@@ -85,6 +85,30 @@ async function onRun(): Promise<void> {
     }
 }
 
+// --- re-run failed jobs (uses the trigger API's jobs:[] selector) --------
+const failedConfigNames = computed(() => [
+    ...new Set(
+        nodes.value
+            .filter((n) => n.status === "failed")
+            .map((n) => n.configName),
+    ),
+]);
+const canRerun = computed(() => canRun.value && !busy.value);
+
+async function rerunJobs(names: string[]): Promise<void> {
+    if (busy.value || names.length === 0) return;
+    busy.value = true;
+    try {
+        const id = await triggerRun({ mode: mode.value, jobs: names });
+        push(`> RERUNNING ${names.join(", ").toUpperCase()}_`, "accent");
+        router.push(`/runs/${id}`);
+    } catch (e) {
+        push(`ERROR: ${e instanceof Error ? e.message : String(e)}`, "error");
+    } finally {
+        busy.value = false;
+    }
+}
+
 async function onCancel(): Promise<void> {
     if (!runId.value) return;
     try {
@@ -165,6 +189,18 @@ function closeLog(name: string): void {
             >
                 <Icon name="stop" /> STOP
             </button>
+            <button
+                v-if="failedConfigNames.length > 0 && canRun"
+                class="btn btn-error"
+                data-test-id="rerun-failed"
+                :disabled="busy"
+                :title="`RERUN: ${failedConfigNames.join(', ')}`"
+                @click="rerunJobs(failedConfigNames)"
+            >
+                <Icon name="retry" /> RERUN_FAILED ({{
+                    failedConfigNames.length
+                }})
+            </button>
             <span class="grow"></span>
             <span v-if="runId" class="dim" data-test-id="current-run-id"
                 >RUN: {{ shortId(runId) }}</span
@@ -197,8 +233,10 @@ function closeLog(name: string): void {
                 :node="focusedNode"
                 :nodes="nodes"
                 :log-attached="logAttached"
+                :can-rerun="canRerun"
                 @close="inspectorOpen = false"
                 @check-logs="checkLogs"
+                @rerun="rerunJobs([$event])"
             />
         </div>
 

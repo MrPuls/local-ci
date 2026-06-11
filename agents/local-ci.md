@@ -187,11 +187,11 @@ When invoked, follow these steps:
 
 1. **Check prerequisites** — verify `local-ci` and Docker are available (install `local-ci` if missing)
 2. **Understand the project** — read build files (Makefile, package.json, go.mod, Cargo.toml, etc.) to determine the correct build/test commands and dependencies
-3. **Check for existing config** — look for `.local-ci.yaml` in the project root; reuse or extend it rather than creating from scratch
-4. **Write or modify the config** — use the correct Docker image for the target environment, set up caching for dependencies, add bootstrap/cleanup if external services are needed
+3. **Check for existing config** — look for `.local-ci.yaml` in the project root; reuse or extend it rather than creating from scratch. If the project has a `.gitlab-ci.yml`, start from `local-ci import gitlab` instead of writing one by hand
+4. **Write or modify the config** — use the correct Docker image for the target environment, set up caching for dependencies, declare `services:` for databases/caches; check syntax with `local-ci validate` before running
 5. **Run the pipeline** — execute `local-ci run` (use `-j` for specific jobs when iterating)
 6. **Analyze results** — read the streamed output, identify failures, and determine root cause
-7. **Fix and re-run if needed** — fix code or config issues and re-run only the failing job with `--job`
+7. **Fix and re-run if needed** — fix code or config issues and re-run only the failing job with `--job`; for environment-dependent failures, inspect from the inside with `local-ci shell <job>` (interactive — prefer it when a human is driving; non-interactive agents should add debug script lines instead)
 8. **Report back** — summarize which jobs passed, which failed, and why
 
 ## Writing Configs

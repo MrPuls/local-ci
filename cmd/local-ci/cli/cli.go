@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	version        = "0.2.1"
+	version        = "0.2.2"
 	configFile     string
 	jobs           []string
 	stages         []string
@@ -30,6 +30,7 @@ var (
 	parallel       bool
 	parallelStages bool
 	noRecord       bool
+	watchMode      bool
 )
 
 // openStore opens the run-history store at its default location. Shared by the
@@ -69,7 +70,7 @@ func newRunCmd() *cobra.Command {
 				mode = engine.ModeParallel
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
 			signals := make(chan os.Signal, 1)
@@ -81,25 +82,40 @@ func newRunCmd() *cobra.Command {
 				cancel()
 			}()
 
-			sinks := []engine.Sink{terminal.New(os.Stdout, os.Stderr)}
+			var st *store.Store
 			if !noRecord {
-				if st, err := openStore(); err != nil {
+				if s, err := openStore(); err != nil {
 					log.Printf("run history disabled: %v", err)
 				} else {
+					st = s
 					defer st.Close()
-					sinks = append(sinks, recorder.New(st))
 				}
 			}
 
-			bus := engine.NewBus(sinks...)
-			return engine.Run(ctx, engine.NewRunID(), engine.Spec{
-				ConfigFile: cfgFile,
-				JobNames:   jobs,
-				Stages:     stages,
-				Remote:     remote,
-				Env:        env,
-				Mode:       mode,
-			}, bus)
+			// One pipeline execution; built fresh per run so watch mode gets a
+			// clean status board and its own run id/record every time.
+			runOnce := func(ctx context.Context) error {
+				runCtx, runCancel := context.WithTimeout(ctx, 1*time.Hour)
+				defer runCancel()
+				sinks := []engine.Sink{terminal.New(os.Stdout, os.Stderr)}
+				if st != nil {
+					sinks = append(sinks, recorder.New(st))
+				}
+				bus := engine.NewBus(sinks...)
+				return engine.Run(runCtx, engine.NewRunID(), engine.Spec{
+					ConfigFile: cfgFile,
+					JobNames:   jobs,
+					Stages:     stages,
+					Remote:     remote,
+					Env:        env,
+					Mode:       mode,
+				}, bus)
+			}
+
+			if watchMode {
+				return watchLoop(ctx, runOnce)
+			}
+			return runOnce(ctx)
 		},
 	}
 
@@ -112,6 +128,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&parallel, "parallel", "p", false, "Run all jobs in parallel, ignoring stages")
 	cmd.Flags().BoolVar(&parallelStages, "parallel-stages", false, "Run stages in order, with jobs inside each stage in parallel")
 	cmd.Flags().BoolVar(&noRecord, "no-record", false, "Do not record this run to the local history database")
+	cmd.Flags().BoolVarP(&watchMode, "watch", "w", false, "Re-run the pipeline whenever project files change")
 	cmd.MarkFlagsMutuallyExclusive("parallel", "parallel-stages")
 
 	return cmd
@@ -178,4 +195,7 @@ func init() {
 	rootCmd.AddCommand(newLogCmd())
 	rootCmd.AddCommand(newServeCmd())
 	rootCmd.AddCommand(newUICmd())
+	rootCmd.AddCommand(newValidateCmd())
+	rootCmd.AddCommand(newShellCmd())
+	rootCmd.AddCommand(newImportCmd())
 }

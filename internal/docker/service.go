@@ -89,7 +89,7 @@ func (c *ContainerManager) RemoveContainerForce(ctx context.Context, containerID
 func (e *Executor) startServices(ctx context.Context, cm *ContainerManager, im *ImageManager, job config.JobConfig, out io.Writer) (*serviceSet, error) {
 	set := &serviceSet{cm: cm, logger: e.logger, netName: "local-ci-" + sanitizeName(job.Name)}
 
-	netID, err := cm.CreateNetwork(ctx, set.netName)
+	netID, err := cm.CreateNetwork(ctx, set.netName, e.scope)
 	if err != nil {
 		return set, fmt.Errorf("create service network: %w", err)
 	}
@@ -145,7 +145,7 @@ func (e *Executor) startService(ctx context.Context, cm *ContainerManager, im *I
 			Image: svc.Image,
 			Env:   env,
 			Labels: map[string]string{
-				"created_by":          "local-ci",
+				"created_by":          e.scope,
 				"local-ci.service":    alias,
 				"local-ci.job-name":   strings.ToLower(job.Name),
 				"local-ci.created-at": time.Now().Format(time.RFC3339),
