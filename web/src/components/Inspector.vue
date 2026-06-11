@@ -79,19 +79,19 @@ const elapsedText = computed(() => {
             ><Icon name="clock" /> {{ fmtSeconds(node.durationMs) }}S</span
           >
           <button
-            v-if="node.status === 'failed'"
-            class="btn btn-error btn-sq"
+            class="btn btn-sq"
+            :class="node.status === 'failed' ? 'btn-error' : ''"
             style="margin-left: auto"
             data-test-id="rerun-job"
             :disabled="!canRerun"
-            title="RERUN_THIS_JOB_ONLY"
+            title="RUN_ONLY_THIS_JOB"
             @click="emit('rerun', node.configName)"
           >
-            <Icon name="retry" /> RERUN
+            <Icon :name="node.status === 'failed' ? 'retry' : 'play'" />
+            {{ node.status === 'failed' ? 'RERUN' : 'RUN_JOB' }}
           </button>
           <button
             class="btn btn-accent btn-sq"
-            :style="node.status === 'failed' ? {} : { marginLeft: 'auto' }"
             data-test-id="check-logs"
             :disabled="!node.ran"
             title="ATTACH_LOG_STREAM_TO_FEED"

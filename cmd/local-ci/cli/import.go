@@ -77,12 +77,12 @@ func newImportGitlabCmd() *cobra.Command {
 				log.SetOutput(io.Discard) // loader chatter would bury the verdict
 				defer log.SetOutput(os.Stderr)
 				cfg := config.NewConfig(importOut)
-				cfgLoadErr := cfg.LoadConfig()
-				if cfgLoadErr == nil {
-					err = config.ValidateConfig(cfg)
+				checkErr := cfg.LoadConfig()
+				if checkErr == nil {
+					checkErr = config.ValidateConfig(cfg)
 				}
-				if cfgLoadErr != nil {
-					fmt.Fprintf(os.Stderr, "\nWarning: the imported config does not validate yet:\n%v\n", err)
+				if checkErr != nil {
+					fmt.Fprintf(os.Stderr, "\nWarning: the imported config does not validate yet:\n%v\n", checkErr)
 					fmt.Fprintln(os.Stderr, "Fix the TODOs above, then check with `local-ci validate`.")
 				} else {
 					fmt.Printf("Imported config is valid: %d stage(s), %d job(s). Try `local-ci run`.\n",

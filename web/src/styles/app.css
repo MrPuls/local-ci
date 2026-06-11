@@ -94,6 +94,41 @@ table.term tbody tr.active td {
   color: var(--term-dim);
   text-shadow: none;
 }
+/* editor lint squiggle (global: injected via v-html) */
+.lint-bad {
+  text-decoration: underline wavy var(--term-error) 1px;
+  text-underline-offset: 3px;
+}
+
+/* ------- ANSI log colors ---------------------------------------------
+ * SGR foregrounds mapped onto a phosphor-friendly palette: saturated but
+ * dimmed enough to sit behind the scanlines. Backgrounds are not rendered. */
+.a-fg30 { color: #777; }
+.a-fg31 { color: #ff5f56; }
+.a-fg32 { color: #4be36e; }
+.a-fg33 { color: #ffc24b; }
+.a-fg34 { color: #5aa7ff; }
+.a-fg35 { color: #d98aff; }
+.a-fg36 { color: #4bd8e3; }
+.a-fg37 { color: #d4d4d4; }
+.a-fg90 { color: #8a8a8a; }
+.a-fg91 { color: #ff8a82; }
+.a-fg92 { color: #7dff9b; }
+.a-fg93 { color: #ffd98a; }
+.a-fg94 { color: #8ec5ff; }
+.a-fg95 { color: #e9b3ff; }
+.a-fg96 { color: #8aeff7; }
+.a-fg97 { color: #ffffff; }
+.a-bold { text-shadow: 0 0 6px currentColor; }
+.a-dim { opacity: 0.6; }
+.a-underline { text-decoration: underline; }
+
+/* search-match highlight inside the log feed */
+.log-match {
+  background: var(--term-accent);
+  color: var(--term-page);
+  text-shadow: none;
+}
 
 /* connection / error banner */
 .banner {

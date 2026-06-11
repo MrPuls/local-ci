@@ -23,6 +23,8 @@ type WireEvent struct {
 	Order       []string  `json:"order,omitempty"`
 	ConfigPath  string    `json:"configPath,omitempty"`
 	ProjectPath string    `json:"projectPath,omitempty"`
+	Commit      string    `json:"commit,omitempty"`
+	Branch      string    `json:"branch,omitempty"`
 	ExitCode    int       `json:"exitCode,omitempty"`
 	DurationMs  int64     `json:"durationMs,omitempty"`
 	Err         string    `json:"err,omitempty"`
@@ -47,6 +49,8 @@ func ToWire(e Event) WireEvent {
 		w.Order = e.Order
 		w.ConfigPath = e.ConfigPath
 		w.ProjectPath = e.ProjectPath
+		w.Commit = e.Commit
+		w.Branch = e.Branch
 	case RunFinished:
 		w.DurationMs = e.Duration.Milliseconds()
 		w.Err = e.Err

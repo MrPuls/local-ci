@@ -55,7 +55,7 @@ func listRuns(st *store.Store) error {
 	}
 
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tSTATUS\tMODE\tSTARTED\tDURATION\tJOBS")
+	fmt.Fprintln(tw, "ID\tSTATUS\tMODE\tGIT\tSTARTED\tDURATION\tJOBS")
 	for _, r := range runs {
 		jobs, _ := st.GetJobs(r.ID)
 		passed := 0
@@ -64,10 +64,26 @@ func listRuns(st *store.Store) error {
 				passed++
 			}
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d/%d\n",
-			r.ID, r.Status, r.Mode, fmtTime(r.StartedAt), fmtDur(r.Duration), passed, len(jobs))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%d/%d\n",
+			r.ID, r.Status, r.Mode, gitRef(r), fmtTime(r.StartedAt), fmtDur(r.Duration), passed, len(jobs))
 	}
 	return tw.Flush()
+}
+
+// gitRef renders a run's git context as "branch@shortsha" ("-" when the run
+// happened outside a git repo or predates git capture).
+func gitRef(r store.Run) string {
+	if r.Commit == "" {
+		return "-"
+	}
+	sha := r.Commit
+	if len(sha) > 7 {
+		sha = sha[:7]
+	}
+	if r.Branch == "" {
+		return sha
+	}
+	return r.Branch + "@" + sha
 }
 
 func showRun(st *store.Store, id string) error {
@@ -83,6 +99,9 @@ func showRun(st *store.Store, id string) error {
 	fmt.Printf("  Project:  %s\n", r.ProjectPath)
 	fmt.Printf("  Config:   %s\n", r.ConfigPath)
 	fmt.Printf("  Mode:     %s\n", r.Mode)
+	if r.Commit != "" {
+		fmt.Printf("  Git:      %s\n", gitRef(r))
+	}
 	fmt.Printf("  Status:   %s\n", r.Status)
 	fmt.Printf("  Started:  %s\n", fmtTime(r.StartedAt))
 	fmt.Printf("  Duration: %s\n", fmtDur(r.Duration))

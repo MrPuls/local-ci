@@ -7,7 +7,8 @@ import { useRuns } from '@/composables/useRuns';
 import { useRunStatus } from '@/composables/useRunStatus';
 import { useSystem } from '@/composables/useSystem';
 import { useToast } from '@/composables/useToast';
-import { fmtBytes, fmtDateTime, fmtDuration, shortId } from '@/lib/format';
+import JobTrends from '@/components/JobTrends.vue';
+import { fmtBytes, fmtDateTime, fmtDuration, gitRef, shortId } from '@/lib/format';
 import type { Run } from '@/lib/types';
 
 const router = useRouter();
@@ -91,7 +92,8 @@ function goNext(): void {
 </script>
 
 <template>
-  <section class="panel" data-test-id="history-view">
+  <div class="col" data-test-id="history-view">
+  <section class="panel">
     <div class="panel-hd">
       <span>RUN_HISTORY</span>
       <span class="dim" style="font-weight: normal">{{ total }} RUNS</span>
@@ -145,6 +147,7 @@ function goNext(): void {
             <th>STATUS</th>
             <th>RUN_ID</th>
             <th>MODE</th>
+            <th>GIT</th>
             <th>STARTED</th>
             <th>DURATION</th>
             <th></th>
@@ -161,6 +164,9 @@ function goNext(): void {
             <td><StatusTag :status="run.status" /></td>
             <td><span class="link">{{ shortId(run.id) }}</span></td>
             <td class="alt">{{ run.mode.toUpperCase() }}</td>
+            <td class="git-cell" :class="{ dim: !run.commit }" :title="run.commit ?? ''">
+              {{ gitRef(run.commit, run.branch) }}
+            </td>
             <td class="dim">{{ fmtDateTime(run.startedAt) }}</td>
             <td>{{ fmtDuration(run.durationMs) }}</td>
             <td class="del-cell" @click.stop>
@@ -210,9 +216,15 @@ function goNext(): void {
       </div>
     </template>
   </section>
+
+  <JobTrends />
+  </div>
 </template>
 
 <style scoped>
+.git-cell {
+  text-transform: none; /* branch names are case-sensitive */
+}
 .db-info {
   display: flex;
   align-items: center;

@@ -34,6 +34,8 @@ export interface Run {
   finishedAt?: string;
   durationMs: number;
   error?: string;
+  commit?: string; // HEAD SHA at run start (absent outside a git repo)
+  branch?: string;
   jobs?: Job[]; // present on GET /api/runs/{id}, absent in the list
 }
 
@@ -132,6 +134,8 @@ export interface WireEvent {
   order?: string[];
   configPath?: string;
   projectPath?: string;
+  commit?: string;
+  branch?: string;
   exitCode?: number;
   durationMs?: number;
   err?: string;
@@ -140,3 +144,25 @@ export interface WireEvent {
 }
 
 export type RunMode = 'sequential' | 'parallel' | 'parallel-stages';
+
+// GET /api/jobs/stats — per-job trend rows across the recent-runs window.
+// Mirrors internal/server/stats.go.
+export interface JobSample {
+  runId: string;
+  status: string; // running | passed | failed
+  durationMs: number;
+}
+
+export interface JobStat {
+  name: string;
+  samples: JobSample[]; // oldest first
+  avgMs: number;
+  maxMs: number;
+  passRate: number; // 0..1 over finished samples
+  flaky: boolean; // both passes and failures in the window
+}
+
+export interface JobStatsResponse {
+  window: number;
+  jobs: JobStat[];
+}

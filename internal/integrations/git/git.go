@@ -79,3 +79,24 @@ func SetupLocal(remote string) error {
 	}
 	return nil
 }
+
+// HeadInfo reports the working directory's current commit SHA and branch name
+// ("HEAD" when detached). Both come back empty when dir isn't a git repository
+// or git isn't installed — callers treat git context as best-effort metadata.
+func HeadInfo(dir string) (sha, branch string) {
+	out := func(args ...string) string {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		b, err := cmd.Output()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(b))
+	}
+	sha = out("rev-parse", "HEAD")
+	if sha == "" {
+		return "", ""
+	}
+	branch = out("rev-parse", "--abbrev-ref", "HEAD")
+	return sha, branch
+}

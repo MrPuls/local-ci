@@ -2,7 +2,9 @@ package store
 
 // schemaVersion is the current schema revision. Bump it (and add migration
 // steps in migrate) when the tables below change.
-const schemaVersion = 1
+//
+// v2: runs gained commit_sha + branch (git context captured at run start).
+const schemaVersion = 2
 
 // schemaSQL creates the run-history tables if they do not already exist.
 // Timestamps are unix milliseconds. Columns that are unknown until a run/job
@@ -17,7 +19,9 @@ CREATE TABLE IF NOT EXISTS runs (
   started_at   INTEGER NOT NULL,
   finished_at  INTEGER,
   duration_ms  INTEGER,
-  error        TEXT    NOT NULL DEFAULT ''
+  error        TEXT    NOT NULL DEFAULT '',
+  commit_sha   TEXT    NOT NULL DEFAULT '',
+  branch       TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_runs_project_started ON runs(project_path, started_at DESC);
 

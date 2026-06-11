@@ -2,6 +2,7 @@ import type {
   ConfigGraph,
   ConfigList,
   Health,
+  JobStatsResponse,
   Run,
   RunListResponse,
   RunMode,
@@ -104,6 +105,11 @@ export async function listRunsPage(limit = 25, offset = 0): Promise<RunPage> {
     `/api/runs?all=true&limit=${limit}&offset=${offset}`,
   );
   return { runs: data.runs ?? [], total: data.total ?? 0 };
+}
+
+/** Per-job duration/status trends over the most recent runs of this project. */
+export function getJobStats(window = 20): Promise<JobStatsResponse> {
+  return getJSON<JobStatsResponse>(`/api/jobs/stats?window=${window}`);
 }
 
 /** Delete a single finished run (row, jobs, and log files). */

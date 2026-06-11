@@ -38,3 +38,4 @@ bin/
 # local-ci run logs
 .local-ci/
 test_local
+completions/

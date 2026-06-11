@@ -175,6 +175,11 @@ Two commands serve it:
 - Because the browser is same-origin with the API and the server binds `127.0.0.1`, the `ui` server runs **without** a bearer token. The `/api` surface stays token-guarded in `serve` mode, where the browser reaches it through the Vite dev proxy (which injects the token, including on the SSE stream).
 - The live event stream is Server-Sent Events: `GET /api/runs/{id}/events` replays a run's event log from the start and then continues live, so the same endpoint drives both active and finished runs.
 
+### Run metadata and trends
+
+- Every run records the git context at start — HEAD SHA and branch, captured best-effort via `git rev-parse` (empty outside a repo). It shows up in the history table (`GIT` column, `branch@sha`), the run header in the pipeline view, `local-ci runs`, and the run JSON (`commit`, `branch`).
+- `GET /api/jobs/stats?window=N` aggregates the last N runs (default 20, max 100) of the server's project into per-job trend rows: duration samples, average/max, pass rate, and a `flaky` flag (both passes and failures inside the window). The history view renders this as the JOB_TRENDS panel — block-character sparklines, one column per run, red for failures. `?all=true` widens to every project.
+
 ### Config selection and editing
 
 - `GET /api/configs` discovers config files in the project directory (the canonical `.local-ci.yaml`/`.local-ci.yml` plus `*.local-ci.yaml`, `*-local-ci.yaml`, `*_local-ci.yaml` and the `.yml` spellings) and marks the active one. On boot the UI shows this list as a "select source" prompt; the `FILE:` chip in the top bar reopens it.

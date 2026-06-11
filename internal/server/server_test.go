@@ -343,3 +343,58 @@ func TestConfigRawRoundTrip(t *testing.T) {
 		t.Errorf("invalid save = %+v, want saved with errors", save)
 	}
 }
+
+func TestGitContextAndJobStats(t *testing.T) {
+	gitRun := func(_ context.Context, runID string, _ engine.Spec, bus *engine.Bus) error {
+		bus.Emit(engine.Event{Type: engine.RunStarted, RunID: runID, ProjectPath: "/p", ConfigPath: "c",
+			Commit: "abc1234def", Branch: "main"})
+		bus.Emit(engine.Event{Type: engine.JobStarted, RunID: runID, Job: "a", Stage: "build"})
+		bus.Emit(engine.Event{Type: engine.JobFinished, RunID: runID, Job: "a", Duration: 2 * time.Second})
+		bus.Emit(engine.Event{Type: engine.RunFinished, RunID: runID, Duration: 2 * time.Second})
+		return nil
+	}
+	ts, mgr, _, _ := newTestServer(t, gitRun)
+
+	resp := do(t, "POST", ts.URL+"/api/runs", `{}`)
+	var trig struct{ ID string }
+	json.NewDecoder(resp.Body).Decode(&trig)
+	resp.Body.Close()
+	waitFinished(t, mgr, trig.ID)
+
+	// Run detail carries the git context.
+	resp = do(t, "GET", ts.URL+"/api/runs/"+trig.ID, "")
+	var run struct {
+		Commit string `json:"commit"`
+		Branch string `json:"branch"`
+	}
+	json.NewDecoder(resp.Body).Decode(&run)
+	resp.Body.Close()
+	if run.Commit != "abc1234def" || run.Branch != "main" {
+		t.Errorf("run git context = %q@%q, want abc1234def@main", run.Branch, run.Commit)
+	}
+
+	// Stats aggregate the job across the window (all=true: the fake run's
+	// project path differs from the server's cwd).
+	resp = do(t, "GET", ts.URL+"/api/jobs/stats?window=10&all=true", "")
+	var stats struct {
+		Window int `json:"window"`
+		Jobs   []struct {
+			Name     string  `json:"name"`
+			AvgMs    int64   `json:"avgMs"`
+			PassRate float64 `json:"passRate"`
+			Flaky    bool    `json:"flaky"`
+			Samples  []struct {
+				Status string `json:"status"`
+			} `json:"samples"`
+		} `json:"jobs"`
+	}
+	json.NewDecoder(resp.Body).Decode(&stats)
+	resp.Body.Close()
+	if len(stats.Jobs) != 1 || stats.Jobs[0].Name != "a" {
+		t.Fatalf("stats jobs = %+v, want one job 'a'", stats.Jobs)
+	}
+	j := stats.Jobs[0]
+	if j.AvgMs != 2000 || j.PassRate != 1 || j.Flaky || len(j.Samples) != 1 {
+		t.Errorf("job stats = %+v, want avg 2000ms, pass rate 1, not flaky", j)
+	}
+}

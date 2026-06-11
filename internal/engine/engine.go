@@ -93,6 +93,7 @@ func Run(ctx context.Context, runID string, spec Spec, bus *Bus) error {
 	}
 
 	wd, _ := os.Getwd()
+	commit, branch := git.HeadInfo(wd)
 	start := time.Now()
 	bus.Emit(Event{
 		Type:        RunStarted,
@@ -103,6 +104,8 @@ func Run(ctx context.Context, runID string, spec Spec, bus *Bus) error {
 		Order:       jobNames(runner.jobs),
 		ConfigPath:  cfg.FileName,
 		ProjectPath: wd,
+		Commit:      commit,
+		Branch:      branch,
 	})
 
 	runErr := runPipeline(cfg, runner, diag)

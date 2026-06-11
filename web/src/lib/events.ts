@@ -30,6 +30,8 @@ export interface LiveState {
   error?: string;
   configPath?: string;
   projectPath?: string;
+  commit?: string;
+  branch?: string;
   hasMatrix: boolean;
   hasDetached: boolean;
   /** Planned job order from run_started, when present. */
@@ -63,6 +65,8 @@ export function applyEvent(s: LiveState, e: WireEvent): LiveState {
       s.startedAt = e.time;
       s.configPath = e.configPath;
       s.projectPath = e.projectPath;
+      s.commit = e.commit;
+      s.branch = e.branch;
       s.hasMatrix = !!e.hasMatrix;
       s.hasDetached = !!e.hasDetached;
       if (e.order) s.order = e.order;

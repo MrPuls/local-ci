@@ -92,6 +92,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/runs/cleanup", s.handleCleanup)
 	api.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancel)
 	api.HandleFunc("GET /api/runs", s.handleListRuns)
+	api.HandleFunc("GET /api/jobs/stats", s.handleJobStats)
 	api.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
 	api.HandleFunc("DELETE /api/runs/{id}", s.handleDeleteRun)
 	api.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
@@ -373,6 +374,8 @@ type runJSON struct {
 	FinishedAt  *time.Time `json:"finishedAt,omitempty"`
 	DurationMs  int64      `json:"durationMs"`
 	Error       string     `json:"error,omitempty"`
+	Commit      string     `json:"commit,omitempty"`
+	Branch      string     `json:"branch,omitempty"`
 	Jobs        []jobJSON  `json:"jobs,omitempty"`
 }
 
@@ -394,6 +397,7 @@ func toRunJSON(r store.Run, jobs []store.Job) runJSON {
 		ID: r.ID, ProjectPath: r.ProjectPath, ConfigPath: r.ConfigPath,
 		Mode: r.Mode, Status: r.Status, StartedAt: r.StartedAt,
 		FinishedAt: nilTime(r.FinishedAt), DurationMs: r.Duration.Milliseconds(), Error: r.Error,
+		Commit: r.Commit, Branch: r.Branch,
 	}
 	for _, j := range jobs {
 		rj.Jobs = append(rj.Jobs, jobJSON{

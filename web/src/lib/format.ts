@@ -58,3 +58,10 @@ export function baseName(path?: string): string {
   const parts = path.split(/[/\\]/);
   return parts[parts.length - 1] || path;
 }
+
+/** Git context as "branch@1a2b3c4" — '--' when the run wasn't in a git repo. */
+export function gitRef(commit?: string, branch?: string): string {
+  if (!commit) return '--';
+  const sha = commit.slice(0, 7);
+  return branch ? `${branch}@${sha}` : sha;
+}

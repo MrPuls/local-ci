@@ -65,6 +65,8 @@ func (r *Recorder) onRunStarted(e engine.Event) {
 		Mode:        modeString(e.Mode),
 		Status:      store.StatusRunning,
 		StartedAt:   e.Time,
+		Commit:      e.Commit,
+		Branch:      e.Branch,
 	}); err != nil {
 		r.warn("create run: %v", err)
 	}

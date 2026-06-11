@@ -38,6 +38,8 @@ type Run struct {
 	FinishedAt  time.Time
 	Duration    time.Duration
 	Error       string
+	Commit      string // HEAD SHA at run start ("" outside a git repo)
+	Branch      string // branch name at run start
 }
 
 // Job is a persisted job within a run.
@@ -111,12 +113,30 @@ func (s *Store) migrate() error {
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM schema_meta`).Scan(&n); err != nil {
 		return err
 	}
-	if n == 0 {
-		if _, err := s.db.Exec(`INSERT INTO schema_meta (version) VALUES (?)`, schemaVersion); err != nil {
-			return err
-		}
+	if n == 0 { // fresh database: schemaSQL already created the current shape
+		_, err := s.db.Exec(`INSERT INTO schema_meta (version) VALUES (?)`, schemaVersion)
+		return err
 	}
-	return nil
+	var v int
+	if err := s.db.QueryRow(`SELECT version FROM schema_meta LIMIT 1`).Scan(&v); err != nil {
+		return err
+	}
+	if v < 2 {
+		for _, stmt := range []string{
+			`ALTER TABLE runs ADD COLUMN commit_sha TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE runs ADD COLUMN branch TEXT NOT NULL DEFAULT ''`,
+		} {
+			if _, err := s.db.Exec(stmt); err != nil {
+				return fmt.Errorf("migrate to v2: %w", err)
+			}
+		}
+		v = 2
+	}
+	if v != schemaVersion {
+		return fmt.Errorf("unknown schema version %d (binary supports %d)", v, schemaVersion)
+	}
+	_, err := s.db.Exec(`UPDATE schema_meta SET version=?`, schemaVersion)
+	return err
 }
 
 func (s *Store) Close() error { return s.db.Close() }
@@ -133,9 +153,9 @@ func (s *Store) RunDir(id string) string { return filepath.Join(s.root, "runs", 
 // CreateRun inserts a new run row (status should be StatusRunning).
 func (s *Store) CreateRun(r Run) error {
 	_, err := s.db.Exec(
-		`INSERT INTO runs (id, project_path, config_path, mode, status, started_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		r.ID, r.ProjectPath, r.ConfigPath, r.Mode, r.Status, r.StartedAt.UnixMilli(),
+		`INSERT INTO runs (id, project_path, config_path, mode, status, started_at, commit_sha, branch)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, r.ProjectPath, r.ConfigPath, r.Mode, r.Status, r.StartedAt.UnixMilli(), r.Commit, r.Branch,
 	)
 	return err
 }
@@ -180,7 +200,7 @@ func (s *Store) ListRuns(projectPath string, all bool, limit, offset int) ([]Run
 	if offset < 0 {
 		offset = 0
 	}
-	const cols = `id, project_path, config_path, mode, status, started_at, finished_at, duration_ms, error`
+	const cols = `id, project_path, config_path, mode, status, started_at, finished_at, duration_ms, error, commit_sha, branch`
 	var rows *sql.Rows
 	var err error
 	if all {
@@ -270,7 +290,7 @@ func (s *Store) OldRunIDs(projectPath string, all bool, keep int) ([]string, err
 // GetRun returns a single run by id, or ErrNotFound.
 func (s *Store) GetRun(id string) (Run, error) {
 	row := s.db.QueryRow(
-		`SELECT id, project_path, config_path, mode, status, started_at, finished_at, duration_ms, error
+		`SELECT id, project_path, config_path, mode, status, started_at, finished_at, duration_ms, error, commit_sha, branch
 		 FROM runs WHERE id=?`, id,
 	)
 	r, err := scanRun(row)
@@ -312,7 +332,7 @@ func scanRun(sc scanner) (Run, error) {
 	var startedMs int64
 	var finishedMs, durMs sql.NullInt64
 	if err := sc.Scan(&r.ID, &r.ProjectPath, &r.ConfigPath, &r.Mode, &r.Status,
-		&startedMs, &finishedMs, &durMs, &r.Error); err != nil {
+		&startedMs, &finishedMs, &durMs, &r.Error, &r.Commit, &r.Branch); err != nil {
 		return Run{}, err
 	}
 	r.StartedAt = time.UnixMilli(startedMs)
@@ -345,4 +365,52 @@ func scanJob(sc scanner) (Job, error) {
 		j.ExitCode = int(exit.Int64)
 	}
 	return j, nil
+}
+
+// JobSample is one job execution inside the recent-runs window, ordered
+// oldest-first — the raw material for duration sparklines and flakiness flags.
+type JobSample struct {
+	RunID     string
+	Name      string
+	Status    string
+	StartedAt time.Time
+	Duration  time.Duration
+}
+
+// JobSamples returns every job execution from the `window` most recent runs of
+// projectPath (all projects when all is true), ordered oldest run first.
+func (s *Store) JobSamples(projectPath string, all bool, window int) ([]JobSample, error) {
+	if window <= 0 {
+		window = 20
+	}
+	q := `
+SELECT j.run_id, j.name, j.status, r.started_at, COALESCE(j.duration_ms, 0)
+FROM jobs j
+JOIN runs r ON r.id = j.run_id
+WHERE r.id IN (SELECT id FROM runs %s ORDER BY started_at DESC LIMIT ?)
+ORDER BY r.started_at ASC, j.id ASC`
+	var rows *sql.Rows
+	var err error
+	if all {
+		rows, err = s.db.Query(fmt.Sprintf(q, ""), window)
+	} else {
+		rows, err = s.db.Query(fmt.Sprintf(q, "WHERE project_path=?"), projectPath, window)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []JobSample
+	for rows.Next() {
+		var js JobSample
+		var startedMs, durMs int64
+		if err := rows.Scan(&js.RunID, &js.Name, &js.Status, &startedMs, &durMs); err != nil {
+			return nil, err
+		}
+		js.StartedAt = time.UnixMilli(startedMs)
+		js.Duration = time.Duration(durMs) * time.Millisecond
+		out = append(out, js)
+	}
+	return out, rows.Err()
 }
