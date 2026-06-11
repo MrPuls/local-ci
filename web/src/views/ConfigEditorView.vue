@@ -6,9 +6,12 @@ import { useConfig } from '@/composables/useConfig';
 import { useConfigRaw } from '@/composables/useConfigRaw';
 import { useRunStatus } from '@/composables/useRunStatus';
 import { useToast } from '@/composables/useToast';
-import { highlightYaml } from '@/lib/yaml';
+import { highlightYamlLine } from '@/lib/yaml';
+import { lintConfig } from '@/lib/lint';
+import { compactDiff, diffLines } from '@/lib/diff';
 import { mergePipeline } from '@/lib/pipeline';
 import { baseName } from '@/lib/format';
+import { getRawConfig } from '@/lib/api';
 
 // CONFIG view — YAML editor (left) + saved-state pipeline preview (right).
 // The editor is a transparent <textarea> over a highlighted <pre>: same font
@@ -32,7 +35,43 @@ watch(stale, (s) => {
 
 const filename = computed(() => baseName(config.value?.path));
 const lineCount = computed(() => text.value.split('\n').length);
-const highlighted = computed(() => highlightYaml(text.value) + '\n');
+
+// --- client-side lint: catch the classics before the file is even saved ---
+const issues = computed(() => (text.value ? lintConfig(text.value) : []));
+const issueByLine = computed(() => {
+  const m = new Map<number, string>();
+  for (const i of issues.value) {
+    m.set(i.line, m.has(i.line) ? `${m.get(i.line)}; ${i.message}` : i.message);
+  }
+  return m;
+});
+
+const highlighted = computed(() => {
+  const map = issueByLine.value;
+  return (
+    text.value
+      .split('\n')
+      .map((l, i) => {
+        const html = highlightYamlLine(l);
+        return map.has(i + 1) ? `<span class="lint-bad">${html || ' '}</span>` : html;
+      })
+      .join('\n') + '\n'
+  );
+});
+
+/** Move the caret to a 1-based line (from the LINT panel). */
+function goToLine(line: number): void {
+  const el = ta.value;
+  if (!el) return;
+  const offsets = text.value.split('\n').slice(0, line - 1).join('\n').length;
+  const pos = line === 1 ? 0 : offsets + 1;
+  el.focus();
+  el.setSelectionRange(pos, pos);
+  const lineHeight = el.scrollHeight / Math.max(1, lineCount.value);
+  el.scrollTop = Math.max(0, (line - 4) * lineHeight);
+  syncScroll();
+  updateCaret();
+}
 
 // Validation chip: unsaved edits beat whatever the last save/load reported.
 const valState = computed<{ label: string; cls: string }>(() => {
@@ -93,17 +132,35 @@ async function onSave(): Promise<void> {
   }
 }
 
-// Reload from disk — two-step confirm when it would discard edits.
+// Reload from disk — two-step confirm with a diff preview when it would
+// discard edits (disk on the left of the comparison, your buffer additions
+// shown as +).
 const reloadPending = ref(false);
+const diskText = ref<string | null>(null);
+
 async function onReload(): Promise<void> {
   if (dirty.value && !reloadPending.value) {
     reloadPending.value = true;
+    try {
+      diskText.value = await getRawConfig(); // diff against what's really on disk
+    } catch {
+      diskText.value = null;
+    }
     return;
   }
-  reloadPending.value = false;
+  cancelReload();
   await load();
   push('> CONFIG_RELOADED_', 'accent');
 }
+
+function cancelReload(): void {
+  reloadPending.value = false;
+  diskText.value = null;
+}
+
+const pendingDiff = computed(() =>
+  diskText.value === null ? [] : compactDiff(diffLines(diskText.value, text.value)),
+);
 
 // Starter pipeline for a config file that doesn't exist yet.
 const TEMPLATE = `stages:
@@ -165,16 +222,45 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload));
       >
         <Icon name="refresh" /> RELOAD
       </button>
-      <button
-        v-else
-        class="btn btn-sq btn-error"
-        data-test-id="editor-reload-confirm"
-        title="Discard edits and re-read from disk"
-        @click="onReload"
-      >
-        <Icon name="warning" /> DISCARD_EDITS?
-      </button>
+      <template v-else>
+        <button
+          class="btn btn-sq btn-error"
+          data-test-id="editor-reload-confirm"
+          title="Discard edits and re-read from disk"
+          @click="onReload"
+        >
+          <Icon name="warning" /> DISCARD_EDITS?
+        </button>
+        <button
+          class="btn btn-sq"
+          data-test-id="editor-reload-cancel"
+          title="Keep editing"
+          @click="cancelReload"
+        >
+          KEEP_EDITING
+        </button>
+      </template>
     </div>
+
+    <!-- discard preview: what reload would throw away -->
+    <section
+      v-if="reloadPending && pendingDiff.length"
+      class="panel panel-error diff-panel"
+      data-test-id="reload-diff"
+    >
+      <div class="panel-hd">
+        <span>UNSAVED_CHANGES</span>
+        <span class="dim" style="font-weight: normal">DISK vs BUFFER — DISCARD LOSES THE + LINES</span>
+      </div>
+      <div class="diff-body">
+        <template v-for="(d, i) in pendingDiff" :key="i">
+          <div v-if="d.kind === 'gap'" class="dim diff-gap">··· {{ d.count }} UNCHANGED LINE{{ d.count === 1 ? '' : 'S' }} ···</div>
+          <div v-else :class="['diff-line', d.kind]">
+            <span class="sign">{{ d.kind === 'add' ? '+' : d.kind === 'del' ? '-' : ' ' }}</span>{{ d.text || ' ' }}
+          </div>
+        </template>
+      </div>
+    </section>
 
     <div v-if="stale && dirty" class="banner" data-test-id="editor-stale">
       <span class="accent">CONFIG SOURCE CHANGED — RELOAD TO LOAD {{ filename }} (DISCARDS EDITS)_</span>
@@ -206,8 +292,16 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload));
         </div>
 
         <div v-else class="editor">
-          <div ref="gutter" class="gutter" aria-hidden="true">
-            <div v-for="n in lineCount" :key="n" class="ln">{{ n }}</div>
+          <div ref="gutter" class="gutter">
+            <div
+              v-for="n in lineCount"
+              :key="n"
+              class="ln"
+              :class="{ 'ln-bad': issueByLine.has(n) }"
+              :title="issueByLine.get(n) ?? ''"
+            >
+              {{ n }}
+            </div>
           </div>
           <div class="code-wrap">
             <!-- eslint-disable-next-line vue/no-v-html — own highlighter output, input is escaped -->
@@ -233,6 +327,9 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload));
 
         <div class="editor-status dim">
           <span>LN {{ caret.line }} · COL {{ caret.col }}</span>
+          <span v-if="issues.length" class="error" data-test-id="lint-count">
+            {{ issues.length }} LINT ISSUE{{ issues.length === 1 ? '' : 'S' }}
+          </span>
           <span style="flex: 1"></span>
           <span>TAB = 2 SPACES · CTRL+S = SAVE</span>
         </div>
@@ -249,6 +346,23 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload));
         <section v-if="valErrors.length" class="panel panel-error" data-test-id="config-errors">
           <div class="panel-hd"><span>VALIDATION</span></div>
           <div v-for="(err, i) in valErrors" :key="i" class="error val-err">! {{ err }}</div>
+        </section>
+        <section v-if="issues.length" class="panel" data-test-id="lint-panel">
+          <div class="panel-hd">
+            <span>LINT</span>
+            <span class="dim" style="font-weight: normal">LIVE · BEFORE_SAVE</span>
+          </div>
+          <button
+            v-for="(issue, i) in issues"
+            :key="i"
+            class="lint-row"
+            :data-test-id="`lint-issue-${i}`"
+            :title="`Jump to line ${issue.line}`"
+            @click="goToLine(issue.line)"
+          >
+            <span class="accent">LN {{ issue.line }}</span>
+            <span class="lint-msg">{{ issue.message }}</span>
+          </button>
         </section>
         <section class="panel" data-test-id="config-meta">
           <div class="panel-hd"><span>SOURCE_INFO</span></div>
@@ -381,5 +495,64 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload));
 }
 .kv .v.path {
   text-transform: none;
+}
+
+.gutter .ln.ln-bad {
+  color: var(--term-error);
+  text-shadow: 0 0 6px var(--term-glow-error);
+  cursor: help;
+}
+
+.lint-row {
+  display: flex;
+  gap: 0.7rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--term-dim);
+  color: var(--term-fg);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  letter-spacing: 0.5px;
+  text-align: left;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+.lint-row:hover {
+  border-left-color: var(--term-accent);
+  background: rgba(255, 176, 0, 0.07);
+}
+.lint-msg {
+  text-transform: none; /* messages quote case-sensitive names */
+}
+
+.diff-panel .diff-body {
+  max-height: 14rem;
+  overflow: auto;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+.diff-line {
+  white-space: pre;
+  text-transform: none;
+}
+.diff-line .sign {
+  display: inline-block;
+  width: 1.2rem;
+}
+.diff-line.add {
+  color: var(--term-fg);
+  background: rgba(51, 255, 0, 0.08);
+}
+.diff-line.del {
+  color: var(--term-error);
+  background: rgba(255, 51, 51, 0.08);
+}
+.diff-line.same {
+  color: var(--term-dim);
+}
+.diff-gap {
+  padding: 0.1rem 0;
+  letter-spacing: 2px;
 }
 </style>

@@ -9,8 +9,12 @@ const props = defineProps<{
   focusedJob: string | null;
   loading?: boolean;
   error?: string | null;
+  canRun?: boolean;
 }>();
-const emit = defineEmits<{ (e: 'focus', name: string): void }>();
+const emit = defineEmits<{
+  (e: 'focus', name: string): void;
+  (e: 'run-stage', stage: string): void;
+}>();
 
 const jobCount = computed(() => allNodes(props.stages).length);
 </script>
@@ -40,7 +44,13 @@ const jobCount = computed(() => allNodes(props.stages).length);
     <div v-else style="overflow-x: auto; padding-bottom: 4px">
       <div style="display: flex; align-items: stretch; gap: 0">
         <template v-for="(stage, i) in stages" :key="stage.name">
-          <StageColumn :stage="stage" :focused-job="focusedJob" @focus="emit('focus', $event)" />
+          <StageColumn
+            :stage="stage"
+            :focused-job="focusedJob"
+            :can-run="canRun"
+            @focus="emit('focus', $event)"
+            @run-stage="emit('run-stage', $event)"
+          />
           <div v-if="i < stages.length - 1" style="display: flex; align-items: center">
             <PipelineEdge :status="edgeStatus(stage, stages[i + 1])" />
           </div>

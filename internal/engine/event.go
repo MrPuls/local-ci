@@ -90,6 +90,8 @@ type Event struct {
 	HasDetached bool
 	ConfigPath  string
 	ProjectPath string
+	Commit      string // HEAD SHA at run start ("" outside a git repo)
+	Branch      string // branch name at run start ("HEAD" when detached)
 
 	// RunStarted / GroupStarted: job ordering for the board.
 	Order []string

@@ -8,6 +8,7 @@ import { useRunStatus } from "@/composables/useRunStatus";
 import { useSettings, type Theme } from "@/composables/useSettings";
 import { useSystem } from "@/composables/useSystem";
 import { useConfigs } from "@/composables/useConfigs";
+import { useToast } from "@/composables/useToast";
 import { baseName } from "@/lib/format";
 
 const { version, online } = useHealth();
@@ -21,8 +22,21 @@ function openSelector(): void {
     });
 }
 const { summary } = useRunStatus();
-const { settings, cycleTheme } = useSettings();
+const { settings, cycleTheme, toggleNotify } = useSettings();
 const { engine } = useSystem();
+const { push } = useToast();
+
+async function onToggleNotify(): Promise<void> {
+    const on = await toggleNotify();
+    push(
+        on
+            ? "> NOTIFICATIONS_ENABLED_"
+            : "Notification" in window
+              ? "> NOTIFICATIONS_OFF_"
+              : "ERROR: NOTIFICATIONS UNSUPPORTED HERE_",
+        on ? "accent" : "error",
+    );
+}
 
 // Container-engine (Docker/OrbStack) readiness chip.
 const engineLabel = computed(() => {
@@ -153,6 +167,19 @@ const themeColor = computed(() => THEME_COLOR[settings.theme]);
             <div style="display: flex; gap: 0.5rem">
                 <button
                     class="btn btn-sq"
+                    :class="{ 'notify-on': settings.notify }"
+                    data-test-id="toggle-notify"
+                    :title="
+                        settings.notify
+                            ? 'RUN-FINISHED NOTIFICATIONS: ON'
+                            : 'RUN-FINISHED NOTIFICATIONS: OFF'
+                    "
+                    @click="onToggleNotify"
+                >
+                    <Icon name="bell" :glow="settings.notify" />
+                </button>
+                <button
+                    class="btn btn-sq"
                     data-test-id="cycle-theme"
                     title="CYCLE PHOSPHOR"
                     @click="cycleTheme()"
@@ -184,5 +211,10 @@ const themeColor = computed(() => THEME_COLOR[settings.theme]);
     color: var(--term-accent);
     border-bottom-color: var(--term-accent);
     text-shadow: 0 0 8px var(--term-glow-accent);
+}
+.notify-on {
+    color: var(--term-accent);
+    border-color: var(--term-accent);
+    box-shadow: 0 0 10px var(--term-glow-accent);
 }
 </style>

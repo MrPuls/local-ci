@@ -9,23 +9,27 @@ export const THEMES: Theme[] = ['amber', 'cyan', 'mono'];
 
 export interface Settings {
   theme: Theme;
+  /** Fire a desktop notification when a run finishes in a hidden tab. */
+  notify: boolean;
 }
 
 const STORAGE_KEY = 'local-ci.settings';
 
-const DEFAULTS: Settings = { theme: 'amber' };
+const DEFAULTS: Settings = { theme: 'amber', notify: false };
 
 function load(): Settings {
+  const out = { ...DEFAULTS };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
-      if (parsed.theme && THEMES.includes(parsed.theme)) return { theme: parsed.theme };
+      if (parsed.theme && THEMES.includes(parsed.theme)) out.theme = parsed.theme;
+      if (typeof parsed.notify === 'boolean') out.notify = parsed.notify;
     }
   } catch {
     // ignore malformed/blocked storage — fall back to defaults
   }
-  return { ...DEFAULTS };
+  return out;
 }
 
 const settings = reactive<Settings>(load());
@@ -67,5 +71,19 @@ export function useSettings() {
     return settings.theme;
   }
 
-  return { settings, cycleTheme };
+  /** Toggle run-finished notifications, requesting permission on first enable.
+   *  Resolves to the resulting on/off state (off when permission is denied). */
+  async function toggleNotify(): Promise<boolean> {
+    if (settings.notify) {
+      settings.notify = false;
+      return false;
+    }
+    if (!('Notification' in window)) return false;
+    let perm = Notification.permission;
+    if (perm === 'default') perm = await Notification.requestPermission();
+    settings.notify = perm === 'granted';
+    return settings.notify;
+  }
+
+  return { settings, cycleTheme, toggleNotify };
 }

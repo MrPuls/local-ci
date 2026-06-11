@@ -28,8 +28,8 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Bootstrap scripts
 - Cleanup scripts (companion to bootstrap)
 - Per-job bootstrap and cleanup scripts
-- Web UI: live pipeline graph, streaming job logs, run control (including re-running just the failed jobs), and a built-in YAML config editor in the browser — served from a single binary with `local-ci ui`
-- Run history: every run is recorded to a local store; inspect it with `local-ci runs` and `local-ci log`
+- Web UI: live pipeline graph, ANSI-colored searchable logs, run control (env vars, per-stage/per-job runs, failed-job re-run), desktop notifications, and a built-in YAML editor with live lint — served from a single binary with `local-ci ui`
+- Run history with git context (branch + commit per run), plus per-job duration trends and flaky-job detection; inspect from the UI or `local-ci runs` / `local-ci log`
 - Debug shell: `local-ci shell <job>` drops you into the job's exact container environment — image, variables, workspace, cache mounts, and running services
 - Watch mode: `local-ci run --watch` re-runs the pipeline on every file change
 - Config linting (`local-ci validate`) and a `.gitlab-ci.yml` importer (`local-ci import gitlab`)
@@ -43,10 +43,11 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Your user must have permissions to access the Docker daemon
 - Verify installation with `docker --version`
 
-### Homebrew (macOS)
+### Homebrew (macOS / Linux)
 ```bash
 brew install --cask MrPuls/local-ci/local-ci
 ```
+Shell completions for bash, zsh, and fish are installed automatically.
 
 ### Go Install
 
@@ -58,7 +59,18 @@ go install github.com/MrPuls/local-ci/cmd/local-ci@latest
 
 ### Manual
 
-Download the latest binary for your platform from the [releases page](https://github.com/MrPuls/local-ci/releases).
+Download the latest binary for your platform (Linux, macOS, or Windows) from the
+[releases page](https://github.com/MrPuls/local-ci/releases). The archives also
+carry completion scripts (`completions/`) for bash, zsh, fish, and PowerShell;
+or generate them on the fly with `local-ci completion <shell>`.
+
+### Shell completions
+
+Completions are context-aware: `local-ci shell <TAB>` lists the jobs defined in
+your config, `-j`/`-s` complete job and stage names, `local-ci log <TAB>`
+completes recent run ids (with their status), and `-c` offers the discovered
+config files. Homebrew installs them for you; otherwise see
+`local-ci completion --help`.
 
 ### Build from source
 
@@ -161,9 +173,18 @@ logs, and browse run history — all backed by the same engine as `local-ci run`
 
 On load the UI scans the project directory for config files (same patterns as
 `run`) and asks which one to drive the session; switch any time via the `FILE:`
-chip in the top bar. The **CONFIG** tab is a built-in YAML editor with syntax
-highlighting, validation feedback, and a live preview of the pipeline graph —
-`Ctrl+S` writes the file back to disk.
+chip in the top bar. The **EDITOR** tab is a built-in YAML editor with syntax
+highlighting, live lint (undefined stages, unknown `needs` targets, missing
+fields — flagged before you save), validation feedback, a diff preview before
+discarding edits, and a live pipeline graph — `Ctrl+S` writes to disk.
+
+The pipeline view exposes the full trigger surface: pick a run mode, set env
+vars, run a single stage from its column header, or a single job from the
+inspector (failed jobs get a one-click re-run). Logs render ANSI colors and
+are searchable. History shows each run's git context (`branch@sha`) and a
+JOB_TRENDS panel: per-job duration sparklines, pass rates, and an
+INTERMITTENT flag for jobs that flip between pass and fail. The bell in the
+top bar enables desktop notifications when a run finishes in a hidden tab.
 
 > For **frontend development** against a hot-reloading dev server, use
 > `local-ci serve` (the API-only backend) together with the Vite dev server —

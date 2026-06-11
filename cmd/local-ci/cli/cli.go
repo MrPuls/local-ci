@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	version        = "0.2.2"
+	version        = "0.2.3"
 	configFile     string
 	jobs           []string
 	stages         []string
@@ -190,12 +190,19 @@ func promptConfigChoice(candidates []string) string {
 }
 
 func init() {
-	rootCmd.AddCommand(newRunCmd())
-	rootCmd.AddCommand(newRunsCmd())
-	rootCmd.AddCommand(newLogCmd())
+	runCmd := newRunCmd()
+	runsCmd := newRunsCmd()
+	logCmd := newLogCmd()
+	validateCmd := newValidateCmd()
+	shellCmd := newShellCmd()
+	registerCompletions(runCmd, shellCmd, validateCmd, runsCmd, logCmd)
+
+	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(runsCmd)
+	rootCmd.AddCommand(logCmd)
 	rootCmd.AddCommand(newServeCmd())
 	rootCmd.AddCommand(newUICmd())
-	rootCmd.AddCommand(newValidateCmd())
-	rootCmd.AddCommand(newShellCmd())
+	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(newImportCmd())
 }
