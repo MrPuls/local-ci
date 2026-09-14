@@ -20,16 +20,17 @@ func writeFile(t *testing.T, dir, name, content string) string {
 }
 
 func TestResolveIncludePathAbsolute(t *testing.T) {
-	abs := "/tmp/foo.yaml"
-	got := resolveIncludePath(abs, "/other/dir")
+	abs := filepath.Join(t.TempDir(), "foo.yaml")
+	got := resolveIncludePath(abs, t.TempDir())
 	if got != filepath.Clean(abs) {
 		t.Errorf("expected absolute path preserved, got %q", got)
 	}
 }
 
 func TestResolveIncludePathRelative(t *testing.T) {
-	got := resolveIncludePath("child.yaml", "/parent/dir")
-	if got != "/parent/dir/child.yaml" {
+	baseDir := t.TempDir()
+	got := resolveIncludePath("child.yaml", baseDir)
+	if got != filepath.Join(baseDir, "child.yaml") {
 		t.Errorf("expected relative join, got %q", got)
 	}
 }

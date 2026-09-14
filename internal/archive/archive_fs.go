@@ -92,7 +92,9 @@ func CreateFSTar(src string, dest *bytes.Buffer) error {
 		if err != nil {
 			return err
 		}
-		header.Name = relPath
+		// Tar entries use slash-separated paths regardless of the host OS.
+		// Linux containers treat Windows backslashes as filename characters.
+		header.Name = filepath.ToSlash(relPath)
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err

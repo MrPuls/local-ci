@@ -309,6 +309,7 @@ The tool provides smart file system handling with .gitignore support:
 
 2. **Container Integration**:
    - Copies the archive to the container's working directory
+   - Converts Windows path separators to `/` in archive entries so nested directories work in Linux containers, for both pipeline runs and debug shells
    - Preserves file metadata and permissions
 
 ### Caching System
