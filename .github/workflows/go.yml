@@ -14,14 +14,17 @@ jobs:
   build:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version-file: go.mod
         check-latest: true
         cache-dependency-path: "**/*.sum"
 

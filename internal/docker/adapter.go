@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -85,7 +85,8 @@ func (a *configAdapter) getMounts(cache *config.CacheConfig, workdir string, job
 		}
 		target += dest
 
-		if !filepath.IsAbs(target) {
+		// Mount targets are Linux container paths, not host filesystem paths.
+		if !path.IsAbs(target) {
 			target = "/" + target
 		}
 		safePath := strings.ReplaceAll(target, "/", "-")
