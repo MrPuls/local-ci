@@ -319,6 +319,33 @@ image:
 
 The same image options work for services and interactive shells. `force_pull` defaults to `false`.
 
+Private registry credentials can be configured once for all jobs and services:
+
+```yaml
+registries:
+  registry.example.com:
+    username: ci-user
+    password_env: REGISTRY_TOKEN
+```
+
+Set `REGISTRY_TOKEN` in the environment running local-ci, then use an image such as `registry.example.com/team/build:latest`. `username_env` is also supported. For registries without an entry, local-ci uses the existing Docker login for the image's registry. See [registry configuration](docs/yaml-reference.md#registries) for all options.
+
+You can also declare the registry login and image in the same job:
+
+```yaml
+Build:
+  stage: build
+  registries:
+    registry.example.com:
+      username: ci-user
+      password_env: REGISTRY_TOKEN
+  image: registry.example.com/team/build:latest
+  script:
+    - make build
+```
+
+Job credentials apply to that job and its services, overriding pipeline credentials for matching hosts. Other jobs keep their own settings.
+
 ## Claude Code Agent
 
 Local CI ships as a [Claude Code](https://claude.ai/code) plugin. Once installed, Claude Code can autonomously write pipeline configs, run them, and validate your code in real Docker environments.

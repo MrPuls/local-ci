@@ -123,6 +123,7 @@ type ArtifactsConfig struct {
 type JobConfig struct {
 	Name         string              `yaml:"-"`
 	Image        ImageConfig         `yaml:"image"`
+	Registries   Registries          `yaml:"registries,omitempty"`
 	Script       []string            `yaml:"script"`
 	Stage        string              `yaml:"stage"`
 	Workdir      string              `yaml:"workdir,omitempty"`
@@ -155,6 +156,7 @@ type Config struct {
 	Jobs            []JobConfig       `yaml:"-"`
 	GlobalVariables map[string]string `yaml:"variables,omitempty"`
 	RemoteProvider  *RemoteProvider   `yaml:"remote_provider,omitempty"`
+	Registries      Registries        `yaml:"registries,omitempty"`
 	CLIVariables    map[string]string `yaml:"-"`
 	Bootstrap       *BootstrapConfig  `yaml:"bootstrap,omitempty"`
 	Cleanup         *CleanupConfig    `yaml:"cleanup,omitempty"`
@@ -169,7 +171,7 @@ func NewConfig(file string) *Config {
 
 func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 	type Alias Config
-	nonJobFields := []string{"stages", "bootstrap", "cleanup", "variables", "remote_provider", "include"}
+	nonJobFields := []string{"stages", "bootstrap", "cleanup", "variables", "remote_provider", "registries", "include"}
 	alias := (*Alias)(c) // to avoid recursion
 
 	var raw map[string]any
@@ -252,6 +254,11 @@ func (c *Config) UnmarshalYAML(node *yaml.Node) error {
 			}
 
 			if slices.Contains(nonJobFields, key) {
+				if key == "registries" {
+					if err := valueNode.Decode(&alias.Registries); err != nil {
+						return fmt.Errorf("registries: %w", err)
+					}
+				}
 				continue
 			}
 

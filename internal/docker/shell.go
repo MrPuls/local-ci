@@ -30,7 +30,7 @@ func RunShell(ctx context.Context, cli *client.Client, cfg *config.Config, job c
 	e := NewDockerExecutor(cli, NewConfigAdapter(cfg, logger), logger)
 	e.scope = shellScope
 	cm := NewContainerManager(cli, e.adapter, logger)
-	im := NewImageManager(cli, e.adapter, logger)
+	im := NewImageManager(cli, e.adapter, logger, job.Registries)
 
 	stdinFd, stdinIsTerm := term.GetFdInfo(os.Stdin)
 	_, stdoutIsTerm := term.GetFdInfo(os.Stdout)

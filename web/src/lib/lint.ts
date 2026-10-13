@@ -15,6 +15,7 @@ const RESERVED = new Set([
   'bootstrap',
   'cleanup',
   'remote_provider',
+  'registries',
   'include',
 ]);
 

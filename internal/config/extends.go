@@ -78,8 +78,9 @@ func resolveJob(job JobConfig, registry map[string]*JobConfig, seen []string) (J
 
 // mergeJobs returns base with overlay's fields applied. Non-empty scalars,
 // non-nil pointers, and non-empty lists from overlay replace base. The
-// Variables map is deep-merged with overlay winning on key conflicts; a copy
-// is made so base's map is not mutated.
+// Variables and Registries maps are merged with overlay winning on key
+// conflicts; copies are made so base's maps are not mutated. Each registry's
+// credential entry is replaced as a whole.
 func mergeJobs(base, overlay JobConfig) JobConfig {
 	out := base
 
@@ -87,6 +88,13 @@ func mergeJobs(base, overlay JobConfig) JobConfig {
 		copied := make(map[string]string, len(base.Variables))
 		maps.Copy(copied, base.Variables)
 		out.Variables = copied
+	}
+	out.Registries = maps.Clone(base.Registries)
+	if len(overlay.Registries) > 0 {
+		if out.Registries == nil {
+			out.Registries = make(Registries)
+		}
+		maps.Copy(out.Registries, overlay.Registries)
 	}
 	if overlay.Name != "" {
 		out.Name = overlay.Name

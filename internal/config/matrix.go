@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"sort"
 	"strings"
@@ -95,6 +96,7 @@ func cartesianProduct(entry MatrixEntry, keys []string) []map[string]string {
 
 func cloneJobForVariant(job JobConfig) JobConfig {
 	v := job
+	v.Registries = maps.Clone(job.Registries)
 	v.Matrix = nil
 	vars := make(map[string]string, len(job.Variables))
 	for k, val := range job.Variables {

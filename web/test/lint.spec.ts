@@ -2,6 +2,35 @@ import { describe, expect, it } from 'vitest';
 import { lintConfig } from '../src/lib/lint';
 
 describe('image config lint', () => {
+  it('recognizes registry login settings as pipeline configuration', () => {
+    expect(lintConfig(`registries:
+  registry.example.com:
+    username: ci-user
+    password_env: REGISTRY_TOKEN
+stages: [build]
+Build:
+  stage: build
+  image: registry.example.com/team/app:latest
+  script: [echo hi]
+`)).toEqual([]);
+  });
+
+  it.each([
+    'registry.example.com/team/build:latest',
+    '\n    name: registry.example.com/team/build:latest\n    force_pull: true',
+  ])('accepts registry credentials alongside a job image: %s', (image) => {
+    expect(lintConfig(`stages: [build]
+Build:
+  stage: build
+  registries:
+    registry.example.com:
+      username: ci-user
+      password_env: REGISTRY_TOKEN
+  image: ${image}
+  script: [echo hi]
+`)).toEqual([]);
+  });
+
   it.each([
     '  image: ubuntu',
     '  image: {name: ubuntu, force_pull: true}',

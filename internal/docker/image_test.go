@@ -17,6 +17,7 @@ import (
 )
 
 func TestEnsureImage(t *testing.T) {
+	t.Setenv("DOCKER_CONFIG", t.TempDir())
 	const progress = "{\"status\":\"Pulling\"}\n{\"status\":\"Done\"}\n"
 	for _, tt := range []struct {
 		name          string
@@ -71,7 +72,7 @@ func TestEnsureImage(t *testing.T) {
 			}
 			defer cli.Close()
 			logger := log.New(io.Discard, "", 0)
-			im := NewImageManager(cli, NewConfigAdapter(&config.Config{}, logger), logger)
+			im := NewImageManager(cli, NewConfigAdapter(&config.Config{}, logger), logger, nil)
 			var out bytes.Buffer
 			err = im.EnsureImage(context.Background(), config.ImageConfig{Name: "ubuntu", ForcePull: tt.forcePull}, &out)
 			if tt.wantErr == "" && err != nil {
@@ -115,7 +116,7 @@ func TestEnsureImageInspectsExactReference(t *testing.T) {
 			}
 			defer cli.Close()
 			logger := log.New(io.Discard, "", 0)
-			im := NewImageManager(cli, NewConfigAdapter(&config.Config{}, logger), logger)
+			im := NewImageManager(cli, NewConfigAdapter(&config.Config{}, logger), logger, nil)
 			if err := im.EnsureImage(context.Background(), config.ImageConfig{Name: ref}, io.Discard); err != nil {
 				t.Fatal(err)
 			}

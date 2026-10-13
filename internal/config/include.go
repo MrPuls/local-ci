@@ -88,6 +88,16 @@ func mergeConfigInto(into, from *Config) {
 	if into.RemoteProvider == nil {
 		into.RemoteProvider = from.RemoteProvider
 	}
+	if from.Registries != nil {
+		if into.Registries == nil {
+			into.Registries = make(Registries)
+		}
+		for host, credentials := range from.Registries {
+			if _, exists := into.Registries[host]; !exists {
+				into.Registries[host] = credentials
+			}
+		}
+	}
 	if into.Bootstrap == nil {
 		into.Bootstrap = from.Bootstrap
 	}

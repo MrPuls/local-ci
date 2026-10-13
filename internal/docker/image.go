@@ -2,30 +2,29 @@ package docker
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"os"
 
 	localconfig "github.com/MrPuls/local-ci/internal/config"
-	"github.com/docker/cli/cli/config"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
 type ImageManager struct {
-	client  *client.Client
-	adapter ConfigAdapter
-	logger  *log.Logger
+	client     *client.Client
+	adapter    ConfigAdapter
+	logger     *log.Logger
+	registries localconfig.Registries
 }
 
-func NewImageManager(cli *client.Client, adapter ConfigAdapter, logger *log.Logger) *ImageManager {
+func NewImageManager(cli *client.Client, adapter ConfigAdapter, logger *log.Logger, registries localconfig.Registries) *ImageManager {
 	return &ImageManager{
-		client:  cli,
-		adapter: adapter,
-		logger:  logger,
+		client:     cli,
+		adapter:    adapter,
+		logger:     logger,
+		registries: registries,
 	}
 }
 
@@ -79,19 +78,12 @@ func (i *ImageManager) EnsureImage(ctx context.Context, cfg localconfig.ImageCon
 
 func (i *ImageManager) PullImage(ctx context.Context, image string, options image.PullOptions) (io.ReadCloser, error) {
 	i.logger.Printf("[Docker] Pulling image %q...", image)
-	hostname := i.adapter.ToImageHostConfig(image)
-	if hostname != "" {
-		configFile := config.LoadDefaultConfigFile(os.Stderr)
-		authConf, err := configFile.GetAuthConfig(hostname)
+	if options.RegistryAuth == "" {
+		auth, err := i.adapter.ToRegistryAuth(image, i.registries)
 		if err != nil {
 			return nil, err
 		}
-		encodeAuth, err := json.Marshal(authConf)
-		if err != nil {
-			return nil, err
-		}
-		authStr := base64.URLEncoding.EncodeToString(encodeAuth)
-		options.RegistryAuth = authStr
+		options.RegistryAuth = auth
 	}
 	return i.client.ImagePull(ctx, image, options)
 }

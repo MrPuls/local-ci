@@ -54,7 +54,7 @@ local-ci run --remote https://github.com/user/repo.git
 
 ### Structure
 
-A config file has two parts: pipeline-level settings and job definitions. Any top-level YAML key that is not a reserved keyword (`stages`, `variables`, `bootstrap`, `cleanup`, `remote_provider`) is treated as a job.
+A config file has two parts: pipeline-level settings and job definitions. Any top-level YAML key that is not a reserved keyword (`stages`, `variables`, `bootstrap`, `cleanup`, `remote_provider`, `registries`, `include`) is treated as a job.
 
 ### Reserved Keywords
 
@@ -108,13 +108,25 @@ JobName:
 ```
 
 #### remote_provider (optional)
-Fetches environment variables from a GitLab project and makes them available as global variables. Also enables pulling images from private GitLab registries.
+Fetches environment variables from a GitLab project and makes them available as global variables. Image registry authentication is configured separately with `registries` or an existing Docker login.
 ```yaml
 remote_provider:
   url: "gitlab.example.com"
   project_id: 12345678
   access_token: "your_access_token"  # prefix with $ to read from host env
 ```
+
+#### registries (optional)
+Login credentials for private job and service images, matched to the image's exact registry host and port. Use a host environment variable for passwords or access tokens:
+```yaml
+registries:
+  registry.example.com:
+    username: ci-user
+    password_env: REGISTRY_TOKEN
+```
+Each entry requires exactly one of `username`/`username_env` and one of `password`/`password_env`. Environment references are plain variable names, without `$`. They are resolved only when pulling. Registry keys are hostnames without schemes or paths; use `docker.io` for Docker Hub. Missing entries use the saved Docker login for the image's registry. Configured credentials are not written to Docker's config or injected into containers.
+
+The same `registries` map is allowed inside a job, alongside `image`. Job credentials are used before pulling that job's image and services, and override pipeline credentials for matching hosts without affecting other jobs. Templates merge registry entries by host, replacing each host's complete credentials; matrix variants inherit them. Missing job credentials fail the pull instead of falling back to pipeline credentials.
 
 ### Job Definition
 

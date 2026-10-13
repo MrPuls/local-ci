@@ -8,12 +8,14 @@
     - [stages](#stages)
     - [variables (global level)](#variables-global-level)
     - [remote provider (global level)](#remote-provider-global-level)
+    - [registries](#registries)
     - [bootstrap](#bootstrap)
     - [cleanup](#cleanup)
     - [include](#include)
   - [Job Configuration](#job-configuration)
     - [stage](#stage)
     - [image](#image)
+    - [registries (job level)](#registries-job-level)
     - [workdir](#workdir)
     - [variables (job level)](#variables-job-level)
     - [network](#network)
@@ -122,6 +124,40 @@ job_name:
     access_token: "your_access_token"
   ```
 
+#### registries
+- Required: No
+- Type: Map from registry hostname (with optional port) to login credentials.
+- Description: Credentials used to pull private job and service images, including interactive shells. Each entry requires exactly one of `username` or `username_env`, and exactly one of `password` or `password_env`. Tokens such as a personal access token or deploy token can be used as the password.
+- Example:
+  ```yaml
+  registries:
+    registry.example.com:
+      username: ci-user
+      password_env: REGISTRY_TOKEN
+    ghcr.io:
+      username_env: GHCR_USER
+      password_env: GHCR_TOKEN
+
+  stages: [build]
+  Build:
+    stage: build
+    image:
+      name: registry.example.com/team/build:latest
+      force_pull: true
+    script:
+      - make build
+  ```
+
+  Set the referenced environment variables on the host running local-ci. The `_env` fields contain variable names, without `$` or `${...}`. They are read only when pulling an image; validation and reusing a local image do not require them. An unset or empty referenced variable fails the pull instead of falling back to a different login. These credentials are not added to container environment variables.
+
+  Literal `username` and `password` values are also accepted and are not expanded, including any `$` characters. Prefer `password_env` to keep passwords and tokens out of the YAML file and version control.
+
+  Registry keys must be hostnames, such as `registry.example.com`, `localhost:5000`, or `docker.io` for Docker Hub; do not include a URL scheme or repository path. Hostnames are case-insensitive, and `index.docker.io` is accepted as an alias for `docker.io`. Credentials apply only to the matching host and port. Unqualified images such as `team/private:latest` use Docker Hub.
+
+  A job's [`registries`](#registries-job-level) entry takes precedence over the pipeline entry for the same host. Pipeline credentials take precedence over the saved Docker login for that host. Otherwise, local-ci reads Docker's `config.json` and any configured credential helper, honoring `DOCKER_CONFIG`. Public images can still be pulled without credentials. Authentication is sent with each pull; local-ci does not run `docker login` or modify the saved Docker configuration. Registry authentication is independent of `remote_provider`, which fetches GitLab variables.
+
+  With `include`, registries are merged by host: the main file wins, and later includes win over earlier ones. An overriding entry replaces the complete credential entry for that host.
+
 #### Bootstrap
 - Required: No
 - Type: Map with the following options:
@@ -157,7 +193,7 @@ Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, c
 #### include
 - Required: No
 - Type: List of file paths (strings)
-- Description: Pulls additional YAML files into the configuration. Each included file is parsed and its top-level keys (jobs, templates, global variables, stages, bootstrap/cleanup, remote provider) are merged into the main config. The main file always wins on conflicts; among multiple includes, later entries win over earlier ones. Includes can themselves contain `include:` directives — those are resolved recursively, with cycle detection.
+- Description: Pulls additional YAML files into the configuration. Each included file is parsed and its top-level keys (jobs, templates, global variables, stages, bootstrap/cleanup, remote provider, registries) are merged into the main config. The main file always wins on conflicts; among multiple includes, later entries win over earlier ones. Includes can themselves contain `include:` directives — those are resolved recursively, with cycle detection.
 
   Paths are resolved **relative to the file that contains the `include:` directive**, not the working directory. Absolute paths are accepted as-is.
 
@@ -200,6 +236,32 @@ Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, c
   ```
 
   `image: {name: ubuntu}` and `image: {name: ubuntu, force_pull: false}` both use the default pull-if-missing behavior. When inheriting from a template, the image name and pull policy are inherited together; defining a new `image` replaces both, so a string override restores the default policy.
+
+#### registries (job level)
+- Required: No
+- Type: The same host-to-credentials map as pipeline-level [`registries`](#registries).
+- Description: Login credentials for this job's image and services. They are available before the images are pulled, so a job can declare its registry login and use an image from that registry in the same block. The same settings are used by `local-ci shell` for this job.
+- Example:
+  ```yaml
+  stages: [build]
+  Build:
+    stage: build
+    registries:
+      registry.example.com:
+        username: ci-user
+        password_env: REGISTRY_TOKEN
+    image:
+      name: registry.example.com/team/build:latest
+      force_pull: true
+    script:
+      - make build
+  ```
+
+  The string form `image: registry.example.com/team/build:latest` also works. No pipeline-level registry entry is required. Set `REGISTRY_TOKEN` in the host environment before running local-ci.
+
+  Credentials are selected for each registry host in this order: job, pipeline, saved Docker login. A job entry replaces the entire credential entry for that host; credentials for other hosts still use pipeline defaults. Job credentials do not affect other jobs, including jobs running in parallel. A missing environment variable in the selected job entry fails the pull instead of using a lower-priority login.
+
+  Templates can define job-level registries. `extends` merges registry maps by host, with the job or later template winning for a given host; each credential entry is replaced as a whole. Matrix variants inherit their job's registry settings.
 
 #### workdir
 - Required: No
@@ -687,6 +749,7 @@ How a field flows from template to job depends on its type:
 | `image` | Inherited as a whole when omitted. A local string or mapping replaces both the name and `force_pull` policy. |
 | Lists (`script`, `cache.paths`, `matrix`, `run` arrays) | If the job declares the list at all, it **replaces** the template's list entirely. |
 | `variables` map | Deep merged: keys from the template are inherited, keys defined locally override per key. |
+| `registries` map | Merged by registry host. Local entries replace the complete credentials for that host; other hosts are inherited. |
 | Nested objects (`cache`, `network`, `job_bootstrap`, `job_cleanup`) | Replaced atomically when the job defines its own. |
 | `parallel` | Inherited from the template unless the job sets `parallel:` itself. A job can explicitly set `parallel: false` to opt out of a template that enabled it. |
 

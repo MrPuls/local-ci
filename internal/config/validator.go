@@ -21,6 +21,7 @@ func ValidateConfig(cfg *Config) error {
 func (v *ConfigValidator) Validate() error {
 	checks := []func() error{
 		v.validateRemoteProvider,
+		v.validateRegistries,
 		v.validateBootstrap,
 		v.validateCleanup,
 		v.validateStages,
@@ -106,6 +107,9 @@ func (v *ConfigValidator) validateJobs() error {
 }
 
 func (v *ConfigValidator) validateJob(job *JobConfig) error {
+	if err := job.Registries.Validate(); err != nil {
+		return fmt.Errorf("job %q: %w", job.Name, err)
+	}
 	if job.Stage == "" {
 		return fmt.Errorf("[YAML] Stage is empty or undefined in block \"%s\"", job.Name)
 	}

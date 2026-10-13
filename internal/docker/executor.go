@@ -47,7 +47,7 @@ func (e *Executor) Close() error {
 
 func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Writer) error {
 	cm := NewContainerManager(e.client, e.adapter, e.logger)
-	im := NewImageManager(e.client, e.adapter, e.logger)
+	im := NewImageManager(e.client, e.adapter, e.logger, job.Registries)
 	e.logger.Println("Parsing working directory...")
 	wd, wdErr := os.Getwd()
 	if wdErr != nil {
