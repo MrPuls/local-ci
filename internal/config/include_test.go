@@ -170,8 +170,8 @@ include:
 	if build == nil {
 		t.Fatal("Build job missing")
 	}
-	if build.Image != "from-second" {
-		t.Errorf("expected later include (second.yaml) to win, got image %q", build.Image)
+	if build.Image.Name != "from-second" {
+		t.Errorf("expected later include (second.yaml) to win, got image %q", build.Image.Name)
 	}
 }
 
@@ -273,8 +273,8 @@ Build:
 	if build == nil {
 		t.Fatal("Build job missing")
 	}
-	if build.Image != "from-main" {
-		t.Errorf("expected main to win, got image %q", build.Image)
+	if build.Image.Name != "from-main" {
+		t.Errorf("expected main to win, got image %q", build.Image.Name)
 	}
 }
 
@@ -345,8 +345,8 @@ Test:
 	if job.Name != "Test" {
 		t.Fatalf("expected job named Test, got %q", job.Name)
 	}
-	if job.Image != "golang:1.22" {
-		t.Errorf("expected inherited image, got %q", job.Image)
+	if job.Image.Name != "golang:1.22" {
+		t.Errorf("expected inherited image, got %q", job.Image.Name)
 	}
 	if job.Workdir != "/app" {
 		t.Errorf("expected inherited workdir, got %q", job.Workdir)

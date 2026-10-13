@@ -37,6 +37,7 @@ export function lintConfig(text: string): LintIssue[] {
 
   let section: 'stages' | 'include' | 'job' | 'needs' | null = null;
   let job: JobBlock | null = null;
+  let imageIndent: number | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -49,6 +50,7 @@ export function lintConfig(text: string): LintIssue[] {
       const key = top[1].trim();
       const rest = top[2].trim();
       job = null;
+      imageIndent = null;
       section = null;
       if (key === 'stages') {
         hasStagesKey = true;
@@ -82,6 +84,17 @@ export function lintConfig(text: string): LintIssue[] {
     }
     if (job === null) continue;
 
+    // A block-form image gets its name from the nested `name` field.
+    if (imageIndent !== null) {
+      const indent = line.match(/^(\s*)/)![1].length;
+      if (indent > imageIndent) {
+        const name = line.trim().match(/^name:\s*(.*?)\s*$/);
+        if (name) job.hasImage = name[1].replace(/^['"]|['"]$/g, '').trim() !== '';
+        continue;
+      }
+      imageIndent = null;
+    }
+
     const field = line.match(/^\s{1,8}(\w+):\s*(.*)$/);
     if (field && /^\s{1,8}\w/.test(line) && line.match(/^(\s+)/)![1].length <= 4) {
       const key = field[1];
@@ -93,6 +106,7 @@ export function lintConfig(text: string): LintIssue[] {
           break;
         case 'image':
           job.hasImage = value !== '';
+          if (value === '') imageIndent = line.match(/^(\s+)/)![1].length;
           break;
         case 'script':
           job.hasScript = true;

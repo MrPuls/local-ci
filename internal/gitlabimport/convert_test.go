@@ -108,8 +108,8 @@ func TestConvertSample(t *testing.T) {
 
 	// default image + before_script folded in.
 	build := byName["build"]
-	if build.Image != "golang:1.26" {
-		t.Errorf("build image = %q, want default golang:1.26", build.Image)
+	if build.Image.Name != "golang:1.26" {
+		t.Errorf("build image = %q, want default golang:1.26", build.Image.Name)
 	}
 	if len(build.Script) != 2 || build.Script[0] != "go version" {
 		t.Errorf("build script = %v, want before_script first", build.Script)
@@ -128,7 +128,7 @@ func TestConvertSample(t *testing.T) {
 	if test.Retry != 2 {
 		t.Errorf("retry = %d, want 2", test.Retry)
 	}
-	if len(test.Services) != 2 || test.Services[0].EffectiveAlias() != "db" || test.Services[1].Image != "redis:7-alpine" {
+	if len(test.Services) != 2 || test.Services[0].EffectiveAlias() != "db" || test.Services[1].Image.Name != "redis:7-alpine" {
 		t.Errorf("services = %+v", test.Services)
 	}
 	if len(test.Needs) != 1 || test.Needs[0] != "build" {

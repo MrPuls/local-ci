@@ -236,7 +236,7 @@ For each job:
    - If a command fails, the pipeline stops
 
 2. **Container Setup**:
-   - Pulls the specified Docker image
+   - Reuses the specified Docker image locally, pulling it if missing (or on every attempt when `image.force_pull: true`)
    - Creates a container with:
       - Custom working directory (defaults to "/")
       - Merged environment variables (global + job-specific)

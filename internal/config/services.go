@@ -14,7 +14,7 @@ import (
 // commands that run to completion — a service is an engine-managed daemon
 // with its own image, lifecycle, and readiness gate.
 type ServiceConfig struct {
-	Image     string            `yaml:"image"`
+	Image     ImageConfig       `yaml:"image"`
 	Alias     string            `yaml:"alias,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 	Ready     *ServiceReady     `yaml:"ready,omitempty"`
@@ -33,8 +33,7 @@ type ServiceReady struct {
 // `- postgres:16`, which sets the image and derives the alias.
 func (s *ServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
-		s.Image = node.Value
-		return nil
+		return node.Decode(&s.Image)
 	}
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("service entry must be an image string or a mapping with an 'image' field")
@@ -50,7 +49,7 @@ func (s *ServiceConfig) EffectiveAlias() string {
 	if s.Alias != "" {
 		return s.Alias
 	}
-	name := s.Image
+	name := s.Image.Name
 	if i := strings.LastIndex(name, "/"); i >= 0 {
 		name = name[i+1:]
 	}

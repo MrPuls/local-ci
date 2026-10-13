@@ -13,7 +13,6 @@ import (
 
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/pkg/stdcopy"
 )
@@ -83,7 +82,7 @@ func (c *ContainerManager) RemoveContainerForce(ctx context.Context, containerID
 	return c.client.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: true})
 }
 
-// startServices creates the per-job network, then pulls, starts, and
+// startServices creates the per-job network, then prepares images, starts, and
 // readiness-gates every declared service. The returned set is non-nil even on
 // error so the caller can always defer its teardown.
 func (e *Executor) startServices(ctx context.Context, cm *ContainerManager, im *ImageManager, job config.JobConfig, out io.Writer) (*serviceSet, error) {
@@ -122,14 +121,8 @@ func (s *serviceSet) byAlias(alias string) string {
 }
 
 func (e *Executor) startService(ctx context.Context, cm *ContainerManager, im *ImageManager, job config.JobConfig, svc config.ServiceConfig, alias string, set *serviceSet, out io.Writer) error {
-	reader, err := im.PullImage(ctx, svc.Image, image.PullOptions{})
-	if err != nil {
-		return fmt.Errorf("pull %s: %w", svc.Image, err)
-	}
-	_, copyErr := io.Copy(out, reader)
-	reader.Close()
-	if copyErr != nil {
-		return copyErr
+	if err := im.EnsureImage(ctx, svc.Image, out); err != nil {
+		return err
 	}
 
 	env := make([]string, 0, len(svc.Variables))
@@ -142,7 +135,7 @@ func (e *Executor) startService(ctx context.Context, cm *ContainerManager, im *I
 
 	resp, err := cm.client.ContainerCreate(ctx,
 		&container.Config{
-			Image: svc.Image,
+			Image: svc.Image.Name,
 			Env:   env,
 			Labels: map[string]string{
 				"created_by":          e.scope,

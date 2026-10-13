@@ -33,7 +33,7 @@ func NewConfigAdapter(cfg *config.Config, logger *log.Logger) ConfigAdapter {
 
 func (a *configAdapter) ToContainerConfig(job config.JobConfig) *container.Config {
 	return &container.Config{
-		Image:      job.Image,
+		Image:      job.Image.Name,
 		WorkingDir: job.Workdir,
 		Cmd:        []string{"/bin/sh", "-c", a.buildCmd(job.Script)},
 		Env:        a.transformEnvVars(job.Variables),

@@ -185,13 +185,21 @@ Important: Cleanup runs on the host, not inside a container. Unlike bootstrap, c
 
 #### image
 - Required: Yes
-- Type: String
-- Description: Docker image to use for this job
-- Example:
+- Type: An image string or a mapping with `name` (required) and `force_pull` (optional boolean, default `false`).
+- Description: Docker image to use for this job. By default, local-ci reuses the image if it is already present in the Docker daemon, and pulls it only if it is missing. Set `force_pull: true` to pull from the registry before every job attempt, including retries, even when the image exists locally. A failed pull fails the job; it does not fall back to an older local image. The same behavior applies to `local-ci shell`.
+- Examples:
   ```yaml
   job_name:
-    image: alpine
+    image: ubuntu
   ```
+  ```yaml
+  job_name:
+    image:
+      name: ubuntu
+      force_pull: true
+  ```
+
+  `image: {name: ubuntu}` and `image: {name: ubuntu, force_pull: false}` both use the default pull-if-missing behavior. When inheriting from a template, the image name and pull policy are inherited together; defining a new `image` replaces both, so a string override restores the default policy.
 
 #### workdir
 - Required: No
@@ -421,6 +429,7 @@ Important: Variants of a job run concurrently in most modes, so avoid sharing a 
 #### services
 - Required: No
 - Type: A list. Each entry is either an image string (`postgres:16`) or a mapping with `image`, optional `alias`, `variables`, and `ready`.
+- Image policy: Service images are also reused locally by default. The `image` field accepts the same string or mapping as a job's image; for example, `image: {name: postgres:16, force_pull: true}` always pulls before starting that service.
 - Description: Sidecar containers that run for the duration of the job — databases, caches, brokers. Before the job's script starts, the engine creates a private Docker network, starts every service on it, and waits for each to be ready; the job's container joins the same network and reaches each service at its alias (e.g. `postgres://db:5432`). When the job ends — pass, fail, timeout, or cancel — the services and the network are torn down.
 
   The default alias is the image's last path segment without tag (`postgres:16` → `postgres`; `registry.example.com/team/redis:7` → `redis`). Aliases must be unique within a job. Service log output streams into the job log, line-prefixed with `[svc <alias>]`.
@@ -674,7 +683,8 @@ How a field flows from template to job depends on its type:
 
 | Field type | Rule |
 |---|---|
-| Scalars (`image`, `stage`, `workdir`) | Local non-empty value overrides template. |
+| Scalars (`stage`, `workdir`) | Local non-empty value overrides template. |
+| `image` | Inherited as a whole when omitted. A local string or mapping replaces both the name and `force_pull` policy. |
 | Lists (`script`, `cache.paths`, `matrix`, `run` arrays) | If the job declares the list at all, it **replaces** the template's list entirely. |
 | `variables` map | Deep merged: keys from the template are inherited, keys defined locally override per key. |
 | Nested objects (`cache`, `network`, `job_bootstrap`, `job_cleanup`) | Replaced atomically when the job defines its own. |

@@ -91,7 +91,7 @@ func mergeJobs(base, overlay JobConfig) JobConfig {
 	if overlay.Name != "" {
 		out.Name = overlay.Name
 	}
-	if overlay.Image != "" {
+	if overlay.Image.Name != "" {
 		out.Image = overlay.Image
 	}
 	if len(overlay.Script) > 0 {

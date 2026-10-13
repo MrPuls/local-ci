@@ -122,7 +122,7 @@ type ArtifactsConfig struct {
 
 type JobConfig struct {
 	Name         string              `yaml:"-"`
-	Image        string              `yaml:"image"`
+	Image        ImageConfig         `yaml:"image"`
 	Script       []string            `yaml:"script"`
 	Stage        string              `yaml:"stage"`
 	Workdir      string              `yaml:"workdir,omitempty"`

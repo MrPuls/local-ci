@@ -123,7 +123,7 @@ func (v *ConfigValidator) validateJob(job *JobConfig) error {
 				"\nExample:\n\nscript:\n  - echo \"Hello World!\" <- script code goes here\n", job.Name,
 		)
 	}
-	if job.Image == "" {
+	if strings.TrimSpace(job.Image.Name) == "" {
 		return fmt.Errorf("[YAML] Image is empty or undefined in block \"%s\"\n", job.Name)
 	}
 	if job.JobBootstrap != nil {
@@ -200,13 +200,13 @@ func (v *ConfigValidator) validateServices(job *JobConfig) error {
 	}
 	aliases := make(map[string]bool, len(job.Services))
 	for i, svc := range job.Services {
-		if svc.Image == "" {
+		if strings.TrimSpace(svc.Image.Name) == "" {
 			return fmt.Errorf("[YAML] \"%s\" block: service %d has no image.", job.Name, i+1)
 		}
 		alias := svc.EffectiveAlias()
 		if alias == "" || !matrixSafeRe.MatchString(alias) {
 			return fmt.Errorf("[YAML] \"%s\" block: service %q resolves to invalid alias %q "+
-				"(allowed: a-zA-Z0-9_.-); set an explicit 'alias'.", job.Name, svc.Image, alias)
+				"(allowed: a-zA-Z0-9_.-); set an explicit 'alias'.", job.Name, svc.Image.Name, alias)
 		}
 		if aliases[alias] {
 			return fmt.Errorf("[YAML] \"%s\" block: duplicate service alias %q; "+

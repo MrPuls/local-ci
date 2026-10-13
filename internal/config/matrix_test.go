@@ -7,7 +7,7 @@ import (
 )
 
 func TestExpandMatrixNoMatrix(t *testing.T) {
-	job := JobConfig{Name: "Test", Image: "x"}
+	job := JobConfig{Name: "Test", Image: ImageConfig{Name: "x"}}
 	got, err := ExpandMatrix(job)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

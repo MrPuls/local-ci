@@ -6,11 +6,11 @@ import (
 )
 
 func TestMergeJobsScalarOverlay(t *testing.T) {
-	base := JobConfig{Image: "alpine", Stage: "build", Workdir: "/old"}
-	overlay := JobConfig{Image: "ubuntu", Workdir: ""}
+	base := JobConfig{Image: ImageConfig{Name: "alpine"}, Stage: "build", Workdir: "/old"}
+	overlay := JobConfig{Image: ImageConfig{Name: "ubuntu"}, Workdir: ""}
 	out := mergeJobs(base, overlay)
-	if out.Image != "ubuntu" {
-		t.Errorf("image: expected ubuntu (overlay wins), got %q", out.Image)
+	if out.Image.Name != "ubuntu" {
+		t.Errorf("image: expected ubuntu (overlay wins), got %q", out.Image.Name)
 	}
 	if out.Stage != "build" {
 		t.Errorf("stage: expected build (base kept), got %q", out.Stage)
@@ -103,15 +103,15 @@ func TestMergeJobsParallelPointerSemantics(t *testing.T) {
 
 func TestResolveJobSingleExtend(t *testing.T) {
 	registry := map[string]*JobConfig{
-		".base": {Name: ".base", Image: "alpine", Stage: "build"},
+		".base": {Name: ".base", Image: ImageConfig{Name: "alpine"}, Stage: "build"},
 	}
 	job := JobConfig{Name: "Build", Extends: ExtendsList{".base"}, Script: []string{"go build"}}
 	out, err := resolveJob(job, registry, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out.Image != "alpine" {
-		t.Errorf("expected inherited image alpine, got %q", out.Image)
+	if out.Image.Name != "alpine" {
+		t.Errorf("expected inherited image alpine, got %q", out.Image.Name)
 	}
 	if out.Stage != "build" {
 		t.Errorf("expected inherited stage build, got %q", out.Stage)
@@ -126,16 +126,16 @@ func TestResolveJobSingleExtend(t *testing.T) {
 
 func TestResolveJobMultipleExtendsLeftToRight(t *testing.T) {
 	registry := map[string]*JobConfig{
-		".a": {Name: ".a", Image: "alpine", Variables: map[string]string{"X": "from-a", "A": "1"}},
-		".b": {Name: ".b", Image: "ubuntu", Variables: map[string]string{"X": "from-b", "B": "2"}},
+		".a": {Name: ".a", Image: ImageConfig{Name: "alpine"}, Variables: map[string]string{"X": "from-a", "A": "1"}},
+		".b": {Name: ".b", Image: ImageConfig{Name: "ubuntu"}, Variables: map[string]string{"X": "from-b", "B": "2"}},
 	}
 	job := JobConfig{Name: "Job", Extends: ExtendsList{".a", ".b"}}
 	out, err := resolveJob(job, registry, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out.Image != "ubuntu" {
-		t.Errorf("expected later template to win, got image %q", out.Image)
+	if out.Image.Name != "ubuntu" {
+		t.Errorf("expected later template to win, got image %q", out.Image.Name)
 	}
 	if out.Variables["X"] != "from-b" {
 		t.Errorf("expected X=from-b (later template wins), got %q", out.Variables["X"])
@@ -147,7 +147,7 @@ func TestResolveJobMultipleExtendsLeftToRight(t *testing.T) {
 
 func TestResolveJobTransitiveExtends(t *testing.T) {
 	registry := map[string]*JobConfig{
-		".base":  {Name: ".base", Image: "alpine"},
+		".base":  {Name: ".base", Image: ImageConfig{Name: "alpine"}},
 		".mid":   {Name: ".mid", Extends: ExtendsList{".base"}, Workdir: "/app"},
 		".outer": {Name: ".outer", Extends: ExtendsList{".mid"}, Stage: "build"},
 	}
@@ -156,7 +156,7 @@ func TestResolveJobTransitiveExtends(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out.Image != "alpine" || out.Workdir != "/app" || out.Stage != "build" {
+	if out.Image.Name != "alpine" || out.Workdir != "/app" || out.Stage != "build" {
 		t.Errorf("transitive resolution incomplete: %+v", out)
 	}
 }
@@ -187,7 +187,7 @@ func TestResolveJobUnknownTemplate(t *testing.T) {
 func TestResolveAllExtendsRemovesTemplates(t *testing.T) {
 	cfg := &Config{
 		Jobs: []JobConfig{
-			{Name: ".base", Image: "alpine"},
+			{Name: ".base", Image: ImageConfig{Name: "alpine"}},
 			{Name: "Build", Extends: ExtendsList{".base"}, Stage: "build", Script: []string{"x"}},
 		},
 	}
@@ -197,7 +197,7 @@ func TestResolveAllExtendsRemovesTemplates(t *testing.T) {
 	if len(cfg.Jobs) != 1 {
 		t.Fatalf("expected templates to be removed, got %d jobs", len(cfg.Jobs))
 	}
-	if cfg.Jobs[0].Name != "Build" || cfg.Jobs[0].Image != "alpine" {
+	if cfg.Jobs[0].Name != "Build" || cfg.Jobs[0].Image.Name != "alpine" {
 		t.Errorf("expected resolved Build job, got %+v", cfg.Jobs[0])
 	}
 }
@@ -206,7 +206,7 @@ func TestResolveAllExtendsAllowsNonTemplateBase(t *testing.T) {
 	// extends should resolve any name in the registry, even a non-template job.
 	cfg := &Config{
 		Jobs: []JobConfig{
-			{Name: "RealJob", Image: "alpine", Stage: "build", Script: []string{"a"}},
+			{Name: "RealJob", Image: ImageConfig{Name: "alpine"}, Stage: "build", Script: []string{"a"}},
 			{Name: "Copy", Extends: ExtendsList{"RealJob"}, Script: []string{"b"}},
 		},
 	}
@@ -222,7 +222,7 @@ func TestResolveAllExtendsAllowsNonTemplateBase(t *testing.T) {
 	if copyJob == nil {
 		t.Fatal("Copy job missing after resolution")
 	}
-	if copyJob.Image != "alpine" || copyJob.Stage != "build" {
+	if copyJob.Image.Name != "alpine" || copyJob.Stage != "build" {
 		t.Errorf("Copy did not inherit from RealJob: %+v", copyJob)
 	}
 }

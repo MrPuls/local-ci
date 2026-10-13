@@ -67,7 +67,7 @@ func lifecycle(events []Event) []Event {
 func TestRunSequentialEmitsStandalone(t *testing.T) {
 	cfg := &config.Config{
 		Stages: []string{"build"},
-		Jobs:   []config.JobConfig{{Name: "a", Stage: "build", Image: "x", Script: []string{"s"}}},
+		Jobs:   []config.JobConfig{{Name: "a", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}}},
 	}
 	err, events := runWith(t, cfg, ModeSequential, &fakeExecutor{out: map[string]string{"a": "hello\n"}})
 	if err != nil {
@@ -93,8 +93,8 @@ func TestRunParallelEmitsParallelGroup(t *testing.T) {
 	cfg := &config.Config{
 		Stages: []string{"build"},
 		Jobs: []config.JobConfig{
-			{Name: "a", Stage: "build", Image: "x", Script: []string{"s"}},
-			{Name: "b", Stage: "build", Image: "x", Script: []string{"s"}},
+			{Name: "a", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}},
+			{Name: "b", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}},
 		},
 	}
 	err, events := runWith(t, cfg, ModeParallel, &fakeExecutor{})
@@ -123,9 +123,9 @@ func TestRunParallelStagesEmitsStageGroupsInOrder(t *testing.T) {
 	cfg := &config.Config{
 		Stages: []string{"build", "test"},
 		Jobs: []config.JobConfig{
-			{Name: "c", Stage: "build", Image: "x", Script: []string{"s"}},
-			{Name: "u", Stage: "test", Image: "x", Script: []string{"s"}},
-			{Name: "i", Stage: "test", Image: "x", Script: []string{"s"}},
+			{Name: "c", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}},
+			{Name: "u", Stage: "test", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}},
+			{Name: "i", Stage: "test", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}},
 		},
 	}
 	_, events := runWith(t, cfg, ModeParallelStages, &fakeExecutor{})
@@ -149,7 +149,7 @@ func TestRunSequentialMatrixEmitsMatrixGroup(t *testing.T) {
 		Stages: []string{"build"},
 		Jobs: []config.JobConfig{
 			{
-				Name: "m", Stage: "build", Image: "x", Script: []string{"s"},
+				Name: "m", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"},
 				Matrix: []config.MatrixEntry{{"V": {"1", "2"}}},
 			},
 		},
@@ -177,8 +177,8 @@ func TestRunDetachedEmitsDetachedAndWaitNotice(t *testing.T) {
 	cfg := &config.Config{
 		Stages: []string{"build"},
 		Jobs: []config.JobConfig{
-			{Name: "a", Stage: "build", Image: "x", Script: []string{"s"}},
-			{Name: "d", Stage: "build", Image: "x", Script: []string{"s"}, Parallel: ptrTrue()},
+			{Name: "a", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}},
+			{Name: "d", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}, Parallel: ptrTrue()},
 		},
 	}
 	_, events := runWith(t, cfg, ModeSequential, &fakeExecutor{})
@@ -203,7 +203,7 @@ func TestRunDetachedEmitsDetachedAndWaitNotice(t *testing.T) {
 func TestRunReportsJobFailure(t *testing.T) {
 	cfg := &config.Config{
 		Stages: []string{"build"},
-		Jobs:   []config.JobConfig{{Name: "a", Stage: "build", Image: "x", Script: []string{"s"}}},
+		Jobs:   []config.JobConfig{{Name: "a", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"}}},
 	}
 	err, events := runWith(t, cfg, ModeSequential, &fakeExecutor{fail: map[string]bool{"a": true}})
 	if err == nil {

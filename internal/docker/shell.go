@@ -12,7 +12,6 @@ import (
 	"github.com/MrPuls/local-ci/internal/archive"
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/moby/term"
@@ -48,13 +47,10 @@ func RunShell(ctx context.Context, cli *client.Client, cfg *config.Config, job c
 		return err
 	}
 
-	status("Pulling %s...", job.Image)
-	reader, err := im.PullImage(ctx, job.Image, image.PullOptions{})
-	if err != nil {
+	status("Preparing %s...", job.Image.Name)
+	if err := im.EnsureImage(ctx, job.Image, io.Discard); err != nil {
 		return err
 	}
-	_, _ = io.Copy(io.Discard, reader)
-	reader.Close()
 
 	var netCfg *network.NetworkingConfig
 	if len(job.Services) > 0 {
@@ -119,7 +115,7 @@ func RunShell(ctx context.Context, cli *client.Client, cfg *config.Config, job c
 		return err
 	}
 
-	status("Entering %s (job %q) — type 'exit' to leave.", job.Image, job.Name)
+	status("Entering %s (job %q) — type 'exit' to leave.", job.Image.Name, job.Name)
 
 	// Raw terminal for the duration of the session; restored before teardown
 	// messages print.

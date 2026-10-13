@@ -13,7 +13,6 @@ import (
 	"github.com/MrPuls/local-ci/internal/archive"
 	"github.com/MrPuls/local-ci/internal/config"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -69,26 +68,10 @@ func (e *Executor) Execute(ctx context.Context, job config.JobConfig, out io.Wri
 		netCfg = set.jobEndpoint()
 	}
 
-	// options could be switched to adapter type if needed more customization
-	reader, pullErr := im.PullImage(ctx, job.Image, image.PullOptions{})
-	if pullErr != nil {
-		return pullErr
+	if err := im.EnsureImage(ctx, job.Image, out); err != nil {
+		return err
 	}
 
-	defer func(reader io.ReadCloser) {
-		err := reader.Close()
-		if err != nil {
-			e.logger.Printf("[Docker] Error closing image pull reader: %v", err)
-		}
-	}(reader)
-
-	// Or io.Copy(ioutil.Discard, reader) is we don't want to stream it to out
-	_, readerErr := io.Copy(out, reader)
-	if readerErr != nil {
-		return readerErr
-	}
-
-	e.logger.Println("[Docker] Image is pulled...")
 	e.logger.Println("[Docker] Start container creation...")
 	// A previous attempt (retry) or a crashed run may have left a container
 	// with this name behind.

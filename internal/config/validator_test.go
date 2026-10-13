@@ -152,7 +152,7 @@ func TestValidateRemoteProvider_EmptyToken(t *testing.T) {
 func TestValidateJob_MissingStage(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
-	job := &JobConfig{Name: "test", Image: "alpine", Script: []string{"echo hi"}}
+	job := &JobConfig{Name: "test", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}}
 	if err := v.validateJob(job); err == nil {
 		t.Error("expected error for missing stage")
 	}
@@ -161,7 +161,7 @@ func TestValidateJob_MissingStage(t *testing.T) {
 func TestValidateJob_UndefinedStage(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
-	job := &JobConfig{Name: "test", Stage: "deploy", Image: "alpine", Script: []string{"echo hi"}}
+	job := &JobConfig{Name: "test", Stage: "deploy", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}}
 	if err := v.validateJob(job); err == nil {
 		t.Error("expected error for undefined stage")
 	}
@@ -170,7 +170,7 @@ func TestValidateJob_UndefinedStage(t *testing.T) {
 func TestValidateJob_MissingScript(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
-	job := &JobConfig{Name: "test", Stage: "build", Image: "alpine", Script: []string{}}
+	job := &JobConfig{Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{}}
 	if err := v.validateJob(job); err == nil {
 		t.Error("expected error for missing script")
 	}
@@ -189,7 +189,7 @@ func TestValidateJob_JobBootstrapEmptyRun(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobBootstrap: &JobBootstrapConfig{Run: []string{}},
 	}
 	if err := v.validateJob(job); err == nil {
@@ -201,7 +201,7 @@ func TestValidateJob_JobBootstrapNegativeTimeout(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: -1},
 	}
 	if err := v.validateJob(job); err == nil {
@@ -213,7 +213,7 @@ func TestValidateJob_JobBootstrapValid(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: 5},
 	}
 	if err := v.validateJob(job); err != nil {
@@ -225,7 +225,7 @@ func TestValidateJob_JobCleanupRequiresBootstrap(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobCleanup: &JobCleanupConfig{Run: []string{"echo teardown"}},
 	}
 	if err := v.validateJob(job); err == nil {
@@ -237,7 +237,7 @@ func TestValidateJob_JobCleanupEmptyRun(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
 		JobCleanup:   &JobCleanupConfig{Run: []string{}},
 	}
@@ -250,7 +250,7 @@ func TestValidateJob_JobCleanupNegativeTimeout(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
 		JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: -1},
 	}
@@ -263,7 +263,7 @@ func TestValidateJob_JobCleanupValid(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
 		JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: 5},
 	}
@@ -276,7 +276,7 @@ func TestValidateJob_CacheMissingKey(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		Cache: &CacheConfig{Paths: []string{"/tmp"}},
 	}
 	if err := v.validateJob(job); err == nil {
@@ -288,7 +288,7 @@ func TestValidateJob_CacheEmptyPaths(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		Cache: &CacheConfig{Key: "k", Paths: []string{}},
 	}
 	if err := v.validateJob(job); err == nil {
@@ -300,7 +300,7 @@ func TestValidateJob_CacheEmptyPathEntry(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		Cache: &CacheConfig{Key: "k", Paths: []string{"/tmp", ""}},
 	}
 	if err := v.validateJob(job); err == nil {
@@ -312,7 +312,7 @@ func TestValidateJob_Valid(t *testing.T) {
 	cfg := &Config{FileName: "test.yaml", Stages: []string{"build"}}
 	v := NewConfigValidator(cfg)
 	job := &JobConfig{
-		Name: "test", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+		Name: "test", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 		Cache: &CacheConfig{Key: "deps", Paths: []string{"/tmp"}},
 	}
 	if err := v.validateJob(job); err != nil {
@@ -331,7 +331,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				FileName: "test.yaml",
 				Stages:   []string{},
 				Jobs: []JobConfig{
-					{Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"}},
+					{Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}},
 				},
 			},
 		},
@@ -341,7 +341,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				FileName: "test.yaml",
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
-					{Name: "Deploy", Stage: "deploy", Image: "alpine", Script: []string{"echo hi"}},
+					{Name: "Deploy", Stage: "deploy", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}},
 				},
 			},
 		},
@@ -361,7 +361,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				FileName: "test.yaml",
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
-					{Name: "Build", Stage: "build", Image: "alpine", Script: []string{}},
+					{Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{}},
 				},
 			},
 		},
@@ -372,7 +372,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:    []string{"build"},
 				Bootstrap: &BootstrapConfig{Run: []string{}},
 				Jobs: []JobConfig{
-					{Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"}},
+					{Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}},
 				},
 			},
 		},
@@ -383,7 +383,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Cleanup:  &CleanupConfig{Run: []string{"echo bye"}},
 				Jobs: []JobConfig{
-					{Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"}},
+					{Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}},
 				},
 			},
 		},
@@ -394,7 +394,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:    []string{"build"},
 				Bootstrap: &BootstrapConfig{Run: []string{"echo hi"}, Timeout: -1},
 				Jobs: []JobConfig{
-					{Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"}},
+					{Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}},
 				},
 			},
 		},
@@ -405,7 +405,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:         []string{"build"},
 				RemoteProvider: &RemoteProvider{Url: "", ProjectId: 1, Token: "tok"},
 				Jobs: []JobConfig{
-					{Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"}},
+					{Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"}},
 				},
 			},
 		},
@@ -416,7 +416,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
 					{
-						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 						JobBootstrap: &JobBootstrapConfig{Run: []string{}},
 					},
 				},
@@ -429,7 +429,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
 					{
-						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 						JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: -1},
 					},
 				},
@@ -442,7 +442,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
 					{
-						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 						JobCleanup: &JobCleanupConfig{Run: []string{"echo teardown"}},
 					},
 				},
@@ -455,7 +455,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
 					{
-						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 						JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
 						JobCleanup:   &JobCleanupConfig{Run: []string{}},
 					},
@@ -469,7 +469,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
 					{
-						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 						JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}},
 						JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: -1},
 					},
@@ -483,7 +483,7 @@ func TestValidate_RejectsInvalidConfig(t *testing.T) {
 				Stages:   []string{"build"},
 				Jobs: []JobConfig{
 					{
-						Name: "Build", Stage: "build", Image: "alpine", Script: []string{"echo hi"},
+						Name: "Build", Stage: "build", Image: ImageConfig{Name: "alpine"}, Script: []string{"echo hi"},
 						Cache: &CacheConfig{Paths: []string{"/tmp"}},
 					},
 				},
@@ -513,8 +513,8 @@ func TestValidate_FullPipeline(t *testing.T) {
 			Timeout: 5,
 		},
 		Jobs: []JobConfig{
-			{Name: "Build", Stage: "build", Image: "golang:1.21", Script: []string{"go build"}},
-			{Name: "Test", Stage: "test", Image: "golang:1.21", Script: []string{"go test ./..."}},
+			{Name: "Build", Stage: "build", Image: ImageConfig{Name: "golang:1.21"}, Script: []string{"go build"}},
+			{Name: "Test", Stage: "test", Image: ImageConfig{Name: "golang:1.21"}, Script: []string{"go test ./..."}},
 		},
 	}
 	if err := ValidateConfig(cfg); err != nil {
@@ -536,11 +536,11 @@ func TestValidate_FullPipelineWithJobBootstrapCleanup(t *testing.T) {
 		},
 		Jobs: []JobConfig{
 			{
-				Name: "Build", Stage: "build", Image: "golang:1.21", Script: []string{"go build"},
+				Name: "Build", Stage: "build", Image: ImageConfig{Name: "golang:1.21"}, Script: []string{"go build"},
 				JobBootstrap: &JobBootstrapConfig{Run: []string{"echo setup"}, Timeout: 3},
 				JobCleanup:   &JobCleanupConfig{Run: []string{"echo teardown"}, Timeout: 2},
 			},
-			{Name: "Test", Stage: "test", Image: "golang:1.21", Script: []string{"go test ./..."}},
+			{Name: "Test", Stage: "test", Image: ImageConfig{Name: "golang:1.21"}, Script: []string{"go test ./..."}},
 		},
 	}
 	if err := ValidateConfig(cfg); err != nil {

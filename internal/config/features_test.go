@@ -95,7 +95,7 @@ Test:
 	if len(svcs) != 2 {
 		t.Fatalf("services = %d, want 2", len(svcs))
 	}
-	if svcs[0].Image != "postgres:16" || svcs[0].EffectiveAlias() != "postgres" {
+	if svcs[0].Image.Name != "postgres:16" || svcs[0].EffectiveAlias() != "postgres" {
 		t.Errorf("shorthand service = %+v alias %q", svcs[0], svcs[0].EffectiveAlias())
 	}
 	if svcs[1].EffectiveAlias() != "cache" || svcs[1].Variables["FOO"] != "bar" {
@@ -113,7 +113,7 @@ func TestServiceAliasDerivation(t *testing.T) {
 		"registry.example.com/a/b/mysql@sha256:abc": "mysql",
 	}
 	for image, want := range cases {
-		s := ServiceConfig{Image: image}
+		s := ServiceConfig{Image: ImageConfig{Name: image}}
 		if got := s.EffectiveAlias(); got != want {
 			t.Errorf("EffectiveAlias(%q) = %q, want %q", image, got, want)
 		}

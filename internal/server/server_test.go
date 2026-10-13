@@ -191,7 +191,13 @@ Build:
     - echo hi
 Test:
   stage: test
-  image: alpine:3.19
+  image:
+    name: alpine:3.19
+    force_pull: true
+  services:
+    - image:
+        name: redis:7
+        force_pull: true
   script:
     - echo bye
 `), 0o644)
@@ -209,7 +215,13 @@ Test:
 		t.Errorf("stages = %v", g.Stages)
 	}
 	if len(g.Jobs) != 2 {
-		t.Errorf("jobs = %+v, want 2", g.Jobs)
+		t.Fatalf("jobs = %+v, want 2", g.Jobs)
+	}
+	if g.Jobs[0].Image != "alpine:3.19" || g.Jobs[1].Image != "alpine:3.19" {
+		t.Errorf("image names not preserved in graph: %+v", g.Jobs)
+	}
+	if got := g.Jobs[1].Services; len(got) != 1 || got[0].Image != "redis:7" || got[0].Alias != "redis" {
+		t.Errorf("service image not preserved in graph: %+v", got)
 	}
 }
 

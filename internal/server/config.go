@@ -63,7 +63,7 @@ func (s *Server) buildConfigGraph() configGraph {
 		gj := graphJob{
 			Name:         j.Name,
 			Stage:        j.Stage,
-			Image:        j.Image,
+			Image:        j.Image.Name,
 			Parallel:     j.IsParallel(),
 			VariantCount: count,
 			Retry:        j.Retry,
@@ -73,7 +73,7 @@ func (s *Server) buildConfigGraph() configGraph {
 			gj.Timeout = j.Timeout.Std().String()
 		}
 		for _, svc := range j.Services {
-			gj.Services = append(gj.Services, graphService{Alias: svc.EffectiveAlias(), Image: svc.Image})
+			gj.Services = append(gj.Services, graphService{Alias: svc.EffectiveAlias(), Image: svc.Image.Name})
 		}
 		if j.Artifacts != nil {
 			gj.Artifacts = j.Artifacts.Paths

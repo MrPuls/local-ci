@@ -303,6 +303,22 @@ job_name:
       - another/path
 ```
 
+Images are reused from the local Docker daemon when available and pulled only when missing:
+
+```yaml
+image: ubuntu
+```
+
+To always pull from the registry before running the job:
+
+```yaml
+image:
+  name: ubuntu
+  force_pull: true
+```
+
+The same image options work for services and interactive shells. `force_pull` defaults to `false`.
+
 ## Claude Code Agent
 
 Local CI ships as a [Claude Code](https://claude.ai/code) plugin. Once installed, Claude Code can autonomously write pipeline configs, run them, and validate your code in real Docker environments.

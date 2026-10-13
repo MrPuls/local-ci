@@ -16,7 +16,7 @@ func TestPrepareJobConfigsGlobalsDoNotOverrideJobVars(t *testing.T) {
 			GlobalVariables: map[string]string{"REGION": "global", "ONLY_GLOBAL": "g"},
 			Jobs: []config.JobConfig{
 				{
-					Name: "Build", Stage: "build", Image: "x", Script: []string{"s"},
+					Name: "Build", Stage: "build", Image: config.ImageConfig{Name: "x"}, Script: []string{"s"},
 					Variables: map[string]string{"REGION": "job-or-template"},
 				},
 			},
