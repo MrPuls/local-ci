@@ -7,6 +7,8 @@ Local CI is a tool that allows you to run CI/CD pipelines locally using Docker c
 - Run CI pipeline jobs locally using Docker
 - Stages-based execution similar to GitLab CI
 - Configuration using YAML format
+- Reuse local images by default, with `force_pull` for refreshing from the registry
+- Private registry credentials at pipeline or job level
 - Global and job-specific environment variables
 - Working directory customization
 - Cache support for dependencies and build artifacts
@@ -303,6 +305,8 @@ job_name:
       - another/path
 ```
 
+### Image Pull Policy
+
 Images are reused from the local Docker daemon when available and pulled only when missing:
 
 ```yaml
@@ -319,6 +323,8 @@ image:
 
 The same image options work for services and interactive shells. `force_pull` defaults to `false`.
 
+### Private Registries
+
 Private registry credentials can be configured once for all jobs and services:
 
 ```yaml
@@ -333,6 +339,8 @@ Set `REGISTRY_TOKEN` in the environment running local-ci, then use an image such
 You can also declare the registry login and image in the same job:
 
 ```yaml
+stages: [build]
+
 Build:
   stage: build
   registries:
@@ -344,7 +352,7 @@ Build:
     - make build
 ```
 
-Job credentials apply to that job and its services, overriding pipeline credentials for matching hosts. Other jobs keep their own settings.
+Job credentials are available before pulling that job's image and services, overriding pipeline credentials for matching hosts. Other jobs keep their own settings. The same configuration works with `local-ci shell Build`. See [job-level registries](docs/yaml-reference.md#registries-job-level) for precedence and template inheritance.
 
 ## Claude Code Agent
 

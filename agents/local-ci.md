@@ -126,7 +126,31 @@ registries:
 ```
 Each entry requires exactly one of `username`/`username_env` and one of `password`/`password_env`. Environment references are plain variable names, without `$`. They are resolved only when pulling. Registry keys are hostnames without schemes or paths; use `docker.io` for Docker Hub. Missing entries use the saved Docker login for the image's registry. Configured credentials are not written to Docker's config or injected into containers.
 
-The same `registries` map is allowed inside a job, alongside `image`. Job credentials are used before pulling that job's image and services, and override pipeline credentials for matching hosts without affecting other jobs. Templates merge registry entries by host, replacing each host's complete credentials; matrix variants inherit them. Missing job credentials fail the pull instead of falling back to pipeline credentials.
+The same `registries` map is allowed inside a job, alongside `image`. Job credentials are used before pulling that job's image and services, and override pipeline credentials for matching hosts without affecting other jobs. Templates merge registry entries by host, replacing each host's complete credentials; matrix variants inherit them. An unset or empty environment variable referenced by the selected job entry fails the pull instead of falling back to pipeline credentials.
+
+### Image Pull Policy and Private Images
+
+`image: ubuntu` reuses a local image and pulls only when missing. To always pull, use the mapping form with `name` and `force_pull: true`. A failed pull fails the job even when an older local image exists. The same behavior applies to services and `local-ci shell`.
+
+Registry credentials and the image can be declared in the same job:
+
+```yaml
+stages: [build]
+
+Build:
+  stage: build
+  registries:
+    registry.example.com:
+      username: ci-user
+      password_env: REGISTRY_TOKEN
+  image:
+    name: registry.example.com/team/build:latest
+    force_pull: true
+  script:
+    - make build
+```
+
+The host must supply `REGISTRY_TOKEN` before a pull. Registry `_env` references read the local-ci process environment, not YAML job variables or `--env` arguments. No pipeline-level registry entry is needed for this example.
 
 ### Job Definition
 
@@ -218,7 +242,7 @@ When creating a `.local-ci.yaml`:
 - Use `needs: [job]` when a job only depends on specific earlier jobs — it starts as soon as they pass instead of waiting for the whole stage
 - Add `timeout:` to anything that can hang and `retry:` to known-flaky suites
 - Use global `bootstrap`/`cleanup` when all jobs share the same host-side infrastructure
-- Use `job_bootstrap`/`job_cleanup` for host-side, run-to-completion setup commands (docker login, fetching seeds) — not for daemons; that's what `services:` is for
+- Use `registries` for private image credentials. Use `job_bootstrap`/`job_cleanup` for host-side setup commands such as fetching seeds; use `services:` for daemons.
 - Use `host_access: true` when containers need to reach services running on the host
 
 ## Execution Behavior

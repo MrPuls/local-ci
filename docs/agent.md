@@ -28,6 +28,7 @@ Local CI ships as a [Claude Code](https://claude.ai/code) plugin, providing an a
 ## What the Agent Can Do
 
 - Write `.local-ci.yaml` configs tailored to the project's stack
+- Configure image pull policies and private registry credentials, including credentials alongside an image in the same job
 - Run pipelines and interpret the results
 - Validate that code builds in specific environments (e.g. different Go/Node/Python versions)
 - Spin up infrastructure via bootstrap for integration testing
@@ -45,7 +46,7 @@ When Claude Code determines that environment-level validation is needed, it spaw
 4. Streams and analyzes the output in real time
 5. Reports results back — which jobs passed, which failed, and why
 
-Since the agent runs in the background, Claude Code can continue working with you while the pipeline executes. Docker image pulls are cached locally, so subsequent runs are fast.
+Since the agent runs in the background, Claude Code can continue working with you while the pipeline executes. Images are reused from the local Docker daemon by default. Use `image: {name: ubuntu, force_pull: true}` to pull from the registry before every job attempt. This also applies to service images and interactive shells.
 
 ## Agent Configuration
 
@@ -82,6 +83,31 @@ Build-Go-1.22:
   script:
     - go build ./...
 ```
+
+### Private Registry Image in the Same Job
+
+A job can declare a registry login and use its image immediately:
+
+```yaml
+stages: [build]
+
+Build:
+  stage: build
+  registries:
+    registry.example.com:
+      username: ci-user
+      password_env: REGISTRY_TOKEN
+  image:
+    name: registry.example.com/team/build:latest
+    force_pull: true
+  workdir: /app
+  script:
+    - make build
+```
+
+Set `REGISTRY_TOKEN` in the host environment running local-ci. Credentials are available before pulling the job's image and services. For each host, job credentials take precedence over pipeline-level credentials, followed by the saved Docker login. These settings also apply to `local-ci shell Build`.
+
+Omit `force_pull` or use the string image form to reuse a local image when available. See [job-level registries](yaml-reference.md#registries-job-level) for environment references, templates, and credential precedence.
 
 ### Integration Testing with Services
 

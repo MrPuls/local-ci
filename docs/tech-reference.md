@@ -15,6 +15,7 @@
    - [3. Job Execution](#3-job-execution)
 - [Technical Details](#technical-details)
    - [Container Management](#container-management)
+   - [Image Pulling and Registry Authentication](#image-pulling-and-registry-authentication)
    - [Environment Variables](#environment-variables)
    - [Remote Provider](#remote-provider)
    - [File System Handling](#file-system-handling)
@@ -237,6 +238,7 @@ For each job:
 
 2. **Container Setup**:
    - Reuses the specified Docker image locally, pulling it if missing (or on every attempt when `image.force_pull: true`)
+   - For each image pull, selects credentials for the image's registry: job-level `registries`, then pipeline-level `registries`, then the saved Docker login
    - Creates a container with:
       - Custom working directory (defaults to "/")
       - Merged environment variables (global + job-specific)
@@ -268,6 +270,22 @@ For each job:
 - Context-aware operations with proper resource cleanup
 - Real-time log streaming
 
+### Image Pulling and Registry Authentication
+
+Job images and service images use the same preparation flow, including in `local-ci shell`. The string form `image: ubuntu` reuses the image in the Docker daemon when present and pulls only when missing. The object form `image: {name: ubuntu, force_pull: true}` always pulls, including on job retries. Inspection errors other than a missing image stop the job; a failed forced pull does not fall back to an older local image.
+
+`registries` is supported both at the pipeline level and inside a job. A job can declare its credentials and an image from that registry in the same block: authentication is available before its image or services are pulled. Credentials are selected for each image's exact registry host and port in this order:
+
+1. The job's `registries` entry, including entries inherited from templates
+2. The pipeline's `registries` entry
+3. Docker's saved login or configured credential helper, honoring `DOCKER_CONFIG`
+
+Unqualified image names use Docker Hub (`docker.io`). Each configured entry provides `username` or `username_env`, plus `password` or `password_env`. Environment references are resolved from the host process only when pulling; validation and local-image reuse do not require those variables. An unset or empty referenced variable fails the pull rather than selecting another login. Literal credentials are not expanded.
+
+Credentials are passed to Docker with the pull request. Local CI does not persist them to Docker's configuration or add them to the container environment. Job overrides do not modify pipeline defaults or other jobs. Registry maps inherited through `extends` merge by host, with a complete credential entry replaced on conflict; matrix variants inherit the job's settings.
+
+See the [image options](yaml-reference.md#image), [pipeline registry configuration](yaml-reference.md#registries), and [same-job registry and image example](yaml-reference.md#registries-job-level).
+
 ### Environment Variables
 Environment variables from global and job-specific contexts are merged:
 
@@ -295,9 +313,9 @@ JOB_VAR=job_value
 ### Remote Provider
 Provide your GitLab host name and access token for local-ci to access and inject your project's environment variables.
 
-Received this way, variables are treated as global variables af is specified through high level ```variables``` keyword.
+Variables received this way are treated as global variables, as if specified through the top-level `variables` keyword.
 
-Provided hostname allows for modification of docker's auth credential, hence providing access to custom/self-hosted registries. In case of GitLab, allows for accessing images saved in private registries without needing to configure Docker credentials separately.
+`remote_provider` fetches GitLab project variables. Image authentication is configured separately using [`registries`](yaml-reference.md#registries) or a saved Docker login for the image's registry. The remote provider's hostname and access token are not used as registry credentials.
 
 ### File System Handling
 The tool provides smart file system handling with .gitignore support:

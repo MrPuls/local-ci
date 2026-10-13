@@ -150,6 +150,8 @@ job_name:
 
   Set the referenced environment variables on the host running local-ci. The `_env` fields contain variable names, without `$` or `${...}`. They are read only when pulling an image; validation and reusing a local image do not require them. An unset or empty referenced variable fails the pull instead of falling back to a different login. These credentials are not added to container environment variables.
 
+  Registry `_env` references read the local-ci process environment, not the YAML `variables` maps, `--env` arguments, or variables fetched by `remote_provider`.
+
   Literal `username` and `password` values are also accepted and are not expanded, including any `$` characters. Prefer `password_env` to keep passwords and tokens out of the YAML file and version control.
 
   Registry keys must be hostnames, such as `registry.example.com`, `localhost:5000`, or `docker.io` for Docker Hub; do not include a URL scheme or repository path. Hostnames are case-insensitive, and `index.docker.io` is accepted as an alias for `docker.io`. Credentials apply only to the matching host and port. Unqualified images such as `team/private:latest` use Docker Hub.
@@ -492,6 +494,7 @@ Important: Variants of a job run concurrently in most modes, so avoid sharing a 
 - Required: No
 - Type: A list. Each entry is either an image string (`postgres:16`) or a mapping with `image`, optional `alias`, `variables`, and `ready`.
 - Image policy: Service images are also reused locally by default. The `image` field accepts the same string or mapping as a job's image; for example, `image: {name: postgres:16, force_pull: true}` always pulls before starting that service.
+- Authentication: Uses the owning job's [`registries`](#registries-job-level) entry for the service image's host, then pipeline credentials, then the saved Docker login.
 - Description: Sidecar containers that run for the duration of the job — databases, caches, brokers. Before the job's script starts, the engine creates a private Docker network, starts every service on it, and waits for each to be ready; the job's container joins the same network and reaches each service at its alias (e.g. `postgres://db:5432`). When the job ends — pass, fail, timeout, or cancel — the services and the network are torn down.
 
   The default alias is the image's last path segment without tag (`postgres:16` → `postgres`; `registry.example.com/team/redis:7` → `redis`). Aliases must be unique within a job. Service log output streams into the job log, line-prefixed with `[svc <alias>]`.
